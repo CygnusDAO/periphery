@@ -5,7 +5,11 @@ pragma solidity >=0.8.4;
 
 /// @notice Interface for most DEX pairs (TraderJoe, Pangolin, Sushi, Uniswap, etc.)
 interface IDexPair {
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
 
     event Transfer(address indexed from, address indexed to, uint256 value);
 
@@ -19,7 +23,10 @@ interface IDexPair {
 
     function balanceOf(address owner) external view returns (uint256);
 
-    function allowance(address owner, address spender) external view returns (uint256);
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
 
     function approve(address spender, uint256 value) external returns (bool);
 
@@ -44,11 +51,13 @@ interface IDexPair {
             uint32 blockTimestampLast
         );
 
-    function mint(address to) external returns (uint256 liquidity);
-
     function price0CumulativeLast() external view returns (uint256);
 
     function price1CumulativeLast() external view returns (uint256);
 
-    function burn(address to) external returns (uint256 amount0, uint256 amount1);
+    function mint(address to) external returns (uint256 liquidity);
+
+    function burn(address to)
+        external
+        returns (uint256 amount0, uint256 amount1);
 }
