@@ -105,7 +105,6 @@ contract CygnusAltair is ICygnusAltair, Context {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    //solhint-disable-next-line
     address public immutable override nativeToken;
 
     /**
