@@ -1051,7 +1051,7 @@ contract CygnusAltair is ICygnusAltair, Context {
             revert CygnusAltair__MsgSenderNotCollateral({ sender: _msgSender(), collateral: redeemData.collateral });
         }
 
-        // underlyhing, recipient, redeem tokens, redeem amount, amountA min, amountB min)
+        // Remove liquidity from pool and repay to borrowable
         removeLiquidityAndRepay(
             redeemData.lpTokenPair,
             redeemData.recipient,
