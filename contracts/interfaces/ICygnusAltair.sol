@@ -96,9 +96,9 @@ interface ICygnusAltair {
     function LOCAL_BYTES() external view returns (bytes memory);
 
     /**
-     *  @return DAI The address of DAI on this chain
+     *  @return dai The address of DAI on this chain
      */
-    function DAI() external view returns (address);
+    function dai() external view returns (address);
 
     /**
      *  @notice Function to return collateral and borrow contract addresses for a specific LP Token in Cygnus
@@ -152,22 +152,6 @@ interface ICygnusAltair {
         address recipient,
         uint256 deadline
     ) external payable returns (uint256 tokens);
-
-    /**
-     *  @notice Mints new collateral tokens into existence and assigns them to recipient, icnreasing total supply
-     *  @param terminalToken The address of the collateral/borrow pool token that represents the minted position
-     *  @param amount The amount to be minted
-     *  @param recipient The account that should receive the tokens
-     *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param permitData The permit calldata (if any)
-     */
-    function mintCollateral(
-        address terminalToken,
-        uint256 amount,
-        address recipient,
-        uint256 deadline,
-        bytes calldata permitData
-    ) external returns (uint256 tokens);
 
     /**
      *  @notice Destroys `amount` of tokens, emitting a burn event and decreasing total supply
@@ -273,12 +257,34 @@ interface ICygnusAltair {
         uint256 deadline
     ) external returns (uint256 amount, uint256 seizeTokens);
 
+    /**
+     *  @param cygnusAlbireo The address of Cygnus albireo
+     *  @param borrower The address of the borrower
+     *  @param recipient The address of the recipient
+     *  @param deadline The time by which the transaction must be included to effect the change
+     */
     function liquidateAVAX(
         address cygnusAlbireo,
         address borrower,
         address recipient,
         uint256 deadline
     ) external payable returns (uint256 amountAVAX, uint256 seizeTokens);
+
+    /**
+     *  @notice Function to liquidate a borrower and immediately convert holdings to DAI
+     *  @param cygnusAlbireo The address of Cygnus albireo
+     *  @param amountMax The amount to liquidate
+     *  @param borrower The address of the borrower
+     *  @param recipient The address of the recipient
+     *  @param deadline The time by which the transaction must be included to effect the change
+     */
+    function liquidateToDai(
+        address cygnusAlbireo,
+        uint256 amountMax,
+        address borrower,
+        address recipient,
+        uint256 deadline
+    ) external returns (uint256 amountDai);
 
     /**
      *  @notice Main leverage function

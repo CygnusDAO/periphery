@@ -110,17 +110,17 @@ contract CygnusAltair is ICygnusAltair, Context {
     /**
      *  @inheritdoc ICygnusAltair
      */
+    address public immutable override dai;
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
     bytes public constant override LOCAL_BYTES = new bytes(0);
 
     /**
      *  @inheritdoc ICygnusAltair
      */
     address public constant override JOE_ROUTER = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
-
-    /**
-     *  @inheritdoc ICygnusAltair
-     */
-    address public constant override DAI = 0xd586E7F844cEa2F87f50152665BCbc2C279D8d70;
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTRUCTOR
@@ -141,8 +141,11 @@ contract CygnusAltair is ICygnusAltair, Context {
         // Address of the Borrow Deployer for calculating deployed pools
         borrowDeployer = address(ICygnusFactory(factory).borrowDeployer());
 
-        // nativeToken Address - 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7
+        // Address of nativeToken in this chain
         nativeToken = ICygnusFactory(factory).nativeToken();
+
+        // Address of DAI in this chain
+        dai = ICygnusFactory(factory).dai();
     }
 
     /**
@@ -490,11 +493,11 @@ contract CygnusAltair is ICygnusAltair, Context {
         address tokenB;
 
         // Check if token is DAI
-        if (token0 == DAI || token1 == DAI) {
-            (tokenA, tokenB) = token0 == DAI ? (token0, token1) : (token1, token0);
+        if (token0 == dai || token1 == dai) {
+            (tokenA, tokenB) = token0 == dai ? (token0, token1) : (token1, token0);
         } else {
             // Not DAI, swap DAI to native token
-            swapExactTokensForTokens(DAI, nativeToken, amountDai);
+            swapExactTokensForTokens(dai, nativeToken, amountDai);
 
             // ─────────────────── 3. Check if token0 or token1 is already AVAX
 
@@ -560,9 +563,9 @@ contract CygnusAltair is ICygnusAltair, Context {
 
         // ─────────────────────── 2. Check if token0 or token1 is already DAI
 
-        if (token0 == DAI || token1 == DAI) {
+        if (token0 == dai || token1 == dai) {
             // Convert token0 or token1 to nativeToken
-            token0 == DAI
+            token0 == dai
                 ? swapExactTokensForTokens(token1, nativeToken, amountTokenB)
                 : swapExactTokensForTokens(token0, nativeToken, amountTokenA);
         } else {
@@ -583,10 +586,10 @@ contract CygnusAltair is ICygnusAltair, Context {
 
         // ─────────────────────── 4. Swap all nativeTokens to DAI
 
-        swapExactTokensForTokens(nativeToken, DAI, AltairHelper.contractBalanceOf(nativeToken));
+        swapExactTokensForTokens(nativeToken, dai, AltairHelper.contractBalanceOf(nativeToken));
 
-        // Total Amount A
-        amountDAI = AltairHelper.contractBalanceOf(DAI);
+        // Total Amount DAI
+        amountDAI = AltairHelper.contractBalanceOf(dai);
     }
 
     /**
@@ -622,10 +625,10 @@ contract CygnusAltair is ICygnusAltair, Context {
         }
 
         // Repay and refund
-        uint256 daiAmount = convertLPTokenToDAI(amountAMax, amountBMax, lpTokenPair);
+        uint256 amountDai = convertLPTokenToDAI(amountAMax, amountBMax, lpTokenPair);
 
         // Repay DAI
-        repayAndRefundInternal(borrowable, DAI, borrower, daiAmount);
+        repayAndRefundInternal(borrowable, dai, borrower, amountDai);
 
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
@@ -770,26 +773,6 @@ contract CygnusAltair is ICygnusAltair, Context {
         return mintInternal(terminalToken, nativeToken, msg.value, address(this), recipient);
     }
 
-    /**
-     *  @inheritdoc ICygnusAltair
-     */
-    function mintCollateral(
-        address terminalToken,
-        uint256 amount,
-        address recipient,
-        uint256 deadline,
-        bytes calldata permitData
-    ) external virtual override checkDeadline(deadline) returns (uint256 tokens) {
-        // Get LP Token
-        address lpTokenPair = ICygnusTerminal(terminalToken).underlying();
-
-        // Permit
-        permitInternal(lpTokenPair, amount, deadline, permitData);
-
-        // Mint internal and return amount
-        return mintInternal(terminalToken, lpTokenPair, amount, _msgSender(), recipient);
-    }
-
     //  REPAY BORROW ─────────────────────────────────
 
     /**
@@ -855,10 +838,6 @@ contract CygnusAltair is ICygnusAltair, Context {
 
         // Liquidate
         seizeTokens = ICygnusBorrow(cygnusAlbireo).liquidate(borrower, recipient);
-
-        // address collateral = ICygnusBorrow(cygnusAlbireo).collateral();
-
-        // redeem(collateral, seizeTokens, _msgSender(), deadline, permitData);
     }
 
     /**
@@ -893,6 +872,47 @@ contract CygnusAltair is ICygnusAltair, Context {
         if (msg.value > amountAVAX) {
             SafeErc20.safeTransferAVAX(_msgSender(), msg.value - amountAVAX);
         }
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    function liquidateToDai(
+        address cygnusAlbireo,
+        uint256 amountMax,
+        address borrower,
+        address recipient,
+        uint256 deadline
+    ) external virtual override checkDeadline(deadline) returns (uint256 amountDai) {
+        // Amount to repay
+        uint256 amount = repayAmountInternal(cygnusAlbireo, amountMax, borrower);
+
+        // Transfer DAI
+        IErc20(ICygnusBorrow(cygnusAlbireo).underlying()).safeTransferFrom(_msgSender(), cygnusAlbireo, amount);
+
+        // Liquidate and increase liquidator's CygLP amount
+        uint256 seizeTokens = ICygnusBorrow(cygnusAlbireo).liquidate(borrower, recipient);
+
+        // Get Collateral
+        address collateral = ICygnusBorrow(cygnusAlbireo).collateral();
+
+        // Redeem CygLP for LP Token
+        uint256 redeemAmount = redeem(collateral, seizeTokens, _msgSender(), deadline, LOCAL_BYTES);
+
+        // Get LP Token pair
+        address lpTokenPair = ICygnusCollateral(collateral).underlying();
+
+        // Remove `redeemAmount` of liquidity from the LP Token pair
+        IDexPair(lpTokenPair).transferFrom(recipient, lpTokenPair, redeemAmount);
+
+        // Burn LP Token and return amountA and amountB
+        (uint256 amountAMax, uint256 amountBMax) = IDexPair(lpTokenPair).burn(address(this));
+
+        // Convert amountA and amountB to DAI
+        amountDai = convertLPTokenToDAI(amountAMax, amountBMax, lpTokenPair);
+
+        // Transfer DAI to liquidator
+        IErc20(dai).transfer(recipient, amountDai);
     }
 
     //  LEVERAGE ─────────────────────────────────────
@@ -1019,7 +1039,6 @@ contract CygnusAltair is ICygnusAltair, Context {
         );
 
         /// @custom:error MsgSenderNotRouter Avoid if the caller is not the router
-        // solhint-disable
         if (sender != address(this)) {
             revert CygnusAltair__MsgSenderNotRouter({
                 sender: sender,
@@ -1031,7 +1050,6 @@ contract CygnusAltair is ICygnusAltair, Context {
         else if (_msgSender() != cygnusCollateralContract) {
             revert CygnusAltair__MsgSenderNotCollateral({ sender: _msgSender(), collateral: redeemData.collateral });
         }
-        // solhint-enable
 
         // underlyhing, recipient, redeem tokens, redeem amount, amountA min, amountB min)
         removeLiquidityAndRepay(
