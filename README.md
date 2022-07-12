@@ -33,5 +33,5 @@ function convertLPTokenToDAI(
 ) internal returns (uint256 amountDAI);
 ```
 
-The `CygnusCollateral` contract will send an LP Token amount to the router. The router then calls the `burn` function on the DEX burning the amount of LP Token to delevereage, returning the assets from the LP Token (amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to DAI, sending it back to the borrowable contract.
+The `CygnusCollateral` contract will send an LP Token amount to the router. The router then transfers the LP Token to the liquidity pool and calls the `burn` function on the DEX, burning the amount of LP Token and returning the assets from the LP Token (amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to DAI, sending it back to the borrowable contract.
 
