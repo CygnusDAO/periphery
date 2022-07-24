@@ -2,7 +2,7 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusAltair } from "./interfaces/ICygnusAltair.sol";
+import { ICygnusAltair, ICygnusAltairCall } from "./interfaces/ICygnusAltair.sol";
 import { Context } from "./utils/Context.sol";
 
 // Interfaces
@@ -18,7 +18,6 @@ import { ICygnusFactory } from "./interfaces/ICygnusFactory.sol";
 // Libraries
 import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
 import { SafeErc20 } from "./libraries/SafeErc20.sol";
-import { CygnusPoolAddress } from "./libraries/CygnusPoolAddress.sol";
 import { AltairHelper } from "./libraries/AltairHelper.sol";
 
 /**
@@ -188,10 +187,10 @@ contract CygnusAltair is ICygnusAltair, Context {
      *  @notice Reverts the transaction if the block.timestamp is after deadline
      *  @param deadline A time in the future when the transaction expires
      */
-    function checkDeadlineInternal(uint256 deadline) internal view {
+    function checkDeadlineInternal(uint256 deadline) internal view virtual {
         /// @custom:error TransactionTooOld Avoid transacting past deadline
         if (getBlockTimestamp() > deadline) {
-            revert CygnusAltair__TransactionTooOld(deadline);
+            revert CygnusAltair__TransactionExpired(deadline);
         }
     }
 
@@ -199,7 +198,7 @@ contract CygnusAltair is ICygnusAltair, Context {
      *  @notice Reverts the transaction if the underlying is not AVAX
      *  @param terminalToken The address of the Cygnus Collateral/Borrow tokens
      */
-    function checkAvaxInternal(address terminalToken) internal {
+    function checkAvaxInternal(address terminalToken) internal virtual {
         /// @custom:error NotNativeTokenSender Checks if underlying is Wrapped Avax
         if (nativeToken != ICygnusTerminal(terminalToken).underlying()) {
             revert CygnusAltair__NotNativeTokenSender(terminalToken);
@@ -209,7 +208,7 @@ contract CygnusAltair is ICygnusAltair, Context {
     /**
      *  @notice The current block timestamp
      */
-    function getBlockTimestamp() internal view returns (uint256) {
+    function getBlockTimestamp() internal view virtual returns (uint256) {
         return block.timestamp;
     }
 
@@ -220,7 +219,7 @@ contract CygnusAltair is ICygnusAltair, Context {
         uint256 amountTokenA,
         uint256 reservesTokenA,
         uint256 reservesTokenB
-    ) internal pure returns (uint256 amountTokenB) {
+    ) internal pure virtual returns (uint256 amountTokenB) {
         /// @custom:error InsufficientTokenAmount Avoid 0 Token A amount
         if (amountTokenA <= 0) {
             revert CygnusAltair__InsufficientTokenAmount(amountTokenA);
@@ -382,7 +381,7 @@ contract CygnusAltair is ICygnusAltair, Context {
      *  @param borrower Address of the borrower who is repaying the loan
      *  @param amountMax The max available amount
      */
-    function repayAndRefundInternal(
+    function repayBorrowableInternal(
         address borrowable,
         address token,
         address borrower,
@@ -472,17 +471,13 @@ contract CygnusAltair is ICygnusAltair, Context {
      *  @param lpTokenPair The address of the LP Token we are converting DAI to
      *  @param amountDai DAI amount to convert to token0 and token1 of an LP Token
      */
-    function convertDAIToTokens(address lpTokenPair, uint256 amountDai)
-        internal
-        returns (uint256 totalAmountA, uint256 totalAmountB)
-    {
+    function convertDAIToTokens(
+        address lpTokenPair,
+        address token0,
+        address token1,
+        uint256 amountDai
+    ) internal returns (uint256 totalAmountA, uint256 totalAmountB) {
         // ─────────────────────── 1. Get token0 and token1 from LP Token
-
-        // Token0 from the LP Token
-        address token0 = IDexPair(lpTokenPair).token0();
-
-        // Token1 from the LP Token
-        address token1 = IDexPair(lpTokenPair).token1();
 
         // ─────────────────────── 2. Check if token0 or token1 is already DAI
 
@@ -525,19 +520,13 @@ contract CygnusAltair is ICygnusAltair, Context {
         // Swap optimal amount of tokenA to tokenB
         swapExactTokensForTokens(tokenA, tokenB, swapAmount);
 
-        // ─────────────────────── 5. Send token0 and token1 to lp token pair to call `mint` on next function
+        // ─────────────────────── 5. Send token0 and token1 to lp token pair and call `mint` on next function
 
         // Total Amount A
         totalAmountA = AltairHelper.contractBalanceOf(token0);
 
         // Total Amount B
         totalAmountB = AltairHelper.contractBalanceOf(token1);
-
-        // Transfer tokenA and tokenB to LP Token contract to mint the LP token
-        IErc20(token1).safeTransfer(lpTokenPair, totalAmountB);
-
-        // Transfer tokenB and tokenB to LP Token contract to mint the LP token
-        IErc20(token0).safeTransfer(lpTokenPair, totalAmountA);
     }
 
     /**
@@ -552,7 +541,7 @@ contract CygnusAltair is ICygnusAltair, Context {
         uint256 amountTokenA,
         uint256 amountTokenB,
         address lpTokenPair
-    ) internal returns (uint256 amountDAI) {
+    ) internal virtual returns (uint256 amountDAI) {
         // ─────────────────────── 1. Get token0 and token1
 
         // Token0 from the LP Token
@@ -608,9 +597,10 @@ contract CygnusAltair is ICygnusAltair, Context {
         address borrowable,
         uint256 redeemTokens,
         uint256 redeemAmount
-    ) internal {
+    ) internal virtual {
         // Remove liquidity
         IDexPair(lpTokenPair).transfer(lpTokenPair, redeemAmount);
+        // IDexPair(lpTokenPair).transfer(lpTokenPair)
 
         // Burn and return amountA and amountB
         (uint256 amountAMax, uint256 amountBMax) = IDexPair(lpTokenPair).burn(address(this));
@@ -628,7 +618,7 @@ contract CygnusAltair is ICygnusAltair, Context {
         uint256 amountDai = convertLPTokenToDAI(amountAMax, amountBMax, lpTokenPair);
 
         // Repay DAI
-        repayAndRefundInternal(borrowable, dai, borrower, amountDai);
+        repayBorrowableInternal(borrowable, dai, borrower, amountDai);
 
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
@@ -722,10 +712,9 @@ contract CygnusAltair is ICygnusAltair, Context {
         ICygnusBorrow(cygnusAlbireo).borrow(_msgSender(), recipient, amount, LOCAL_BYTES);
     }
 
-    /**
-     *  @inheritdoc ICygnusAltair
-     */
-    function borrowAVAX(
+    /*
+       
+     function borrowAVAX(
         address cygnusAlbireo,
         uint256 amountAVAX,
         address recipient,
@@ -740,6 +729,7 @@ contract CygnusAltair is ICygnusAltair, Context {
         // Transfer avax
         SafeErc20.safeTransferAVAX(recipient, amountAVAX);
     }
+     */
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
@@ -941,14 +931,14 @@ contract CygnusAltair is ICygnusAltair, Context {
     }
 
     /**
-     *  @inheritdoc ICygnusAltair
+     *  @inheritdoc ICygnusAltairCall
      */
-    function cygnusBorrow(
+    function altairBorrow(
         address sender,
         address borrower,
         uint256 borrowAmount,
         bytes calldata data
-    ) external override {
+    ) external virtual override {
         // Decode data passed from borrow contract
         CygnusShuttle memory cygnusShuttle = abi.decode(data, (CygnusShuttle));
 
@@ -969,8 +959,25 @@ contract CygnusAltair is ICygnusAltair, Context {
             revert CygnusAltair__MsgSenderNotBorrowable({ sender: _msgSender(), borrowable: cygnusBorrowContract });
         }
 
+        // Get token0
+        address token0 = IDexPair(cygnusShuttle.lpTokenPair).token0();
+
+        // Get token 1
+        address token1 = IDexPair(cygnusShuttle.lpTokenPair).token1();
+
         // Convert the borrow amount to DAI and send to LP Token pair address
-        convertDAIToTokens(cygnusShuttle.lpTokenPair, borrowAmount);
+        (uint256 totalAmountA, uint256 totalAmountB) = convertDAIToTokens(
+            cygnusShuttle.lpTokenPair,
+            token0,
+            token1,
+            borrowAmount
+        );
+
+        // Transfer token0 to LP Token contract to mint the LP token
+        IErc20(token0).safeTransfer(cygnusShuttle.lpTokenPair, totalAmountA);
+
+        // Transfer token1 and tokenB to LP Token contract to mint the LP token
+        IErc20(token1).safeTransfer(cygnusShuttle.lpTokenPair, totalAmountB);
 
         // MINT the LP Token in the DEX to the collateral contract
         IDexPair(cygnusShuttle.lpTokenPair).mint(cygnusShuttle.collateral);
@@ -989,17 +996,22 @@ contract CygnusAltair is ICygnusAltair, Context {
         uint256 redeemTokens,
         uint256 deadline,
         bytes calldata permitData
-    ) external override checkDeadline(deadline) {
+    ) external virtual override checkDeadline(deadline) {
         // Get collateral
         address collateral = CygnusPoolAddress.getCollateralContract(lpTokenPair, hangar18, collateralDeployer);
 
+        // Current CygLP exchange rate
         uint256 exchangeRate = ICygnusCollateral(collateral).exchangeRate();
 
-        // Must redeem more than 0
-        require(redeemTokens > 0, "no");
+        /// @custom:error InvalidRedeemAmount Avoid redeeming 0
+        if (redeemTokens <= 0) {
+            revert CygnusAltair__InvalidRedeemAmount({ sender: _msgSender(), redeemTokens: redeemTokens });
+        }
 
+        // Get redeem amount
         uint256 redeemAmount = (redeemTokens - 1).mul(exchangeRate);
 
+        // Permit data
         permitInternal(collateral, redeemTokens, deadline, permitData);
 
         // Encode redeem data
@@ -1019,13 +1031,13 @@ contract CygnusAltair is ICygnusAltair, Context {
     }
 
     /**
-     *  @inheritdoc ICygnusAltair
+     *  @inheritdoc ICygnusAltairCall
      */
-    function cygnusRedeem(
+    function altairRedeem(
         address sender,
         uint256 redeemAmount,
         bytes calldata data
-    ) external override {
+    ) external virtual override {
         redeemAmount;
 
         // Decode shuttle

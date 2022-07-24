@@ -76,6 +76,11 @@ interface ICygnusCollateralControl is ICygnusTerminal {
     function cygnusDai() external view returns (address);
 
     /**
+     *  @notice The address of the LP Token
+     */
+    function lpTokenPair() external pure returns (address);
+
+    /**
      *  @notice Not immutable in case we need to update oracle from factory
      *  @return The address of the Cygnus Price Oracle
      */

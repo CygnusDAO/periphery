@@ -3,7 +3,7 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusCollateralControl } from "./ICygnusCollateralControl.sol";
+import { ICygnusTerminal } from "./ICygnusTerminal.sol";
 
 // Interfaces
 import { IDexPair } from "./IDexPair.sol";
@@ -13,7 +13,7 @@ import { IMiniChef } from "./IMiniChef.sol";
 /**
  *  @title ICygnusCollateralVoid The interface for the masterchef
  */
-interface ICygnusCollateralVoid is ICygnusCollateralControl {
+interface ICygnusCollateralVoid is ICygnusTerminal {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -27,6 +27,11 @@ interface ICygnusCollateralVoid is ICygnusCollateralControl {
      *  @custom:error OnlyAccountsAllowed Avoid contracts
      */
     error CygnusCollateralChef__OnlyEOAAllowed(address sender, address origin);
+
+    /**
+     *  @custom:error NotNativeTokenSender Avoid receiving unless sender is native token
+     */
+    error CygnusCollateralVoid__NotNativeTokenSender(address sender, address origin);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -59,14 +64,19 @@ interface ICygnusCollateralVoid is ICygnusCollateralControl {
      */
     event RechargeVoid(address indexed shuttle, address reinvestor, uint256 rewardBalance, uint256 reinvestReward);
 
-    /**
-     *  @notice Syncs contracts totalRewardsBalance with masterchef
-     */
-    event SyncRewards(uint256 totalRewardsBalance);
-
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    function nativeToken() external view returns (address);
+
+    function token0() external view returns (address);
+
+    function token1() external view returns (address);
+
+    function pid() external view returns (uint256);
+
+    function rewarder() external view returns (IMiniChef);
 
     /**
      *  @return The address of the router from the DEX this shuttle's LP Token belongs to
@@ -88,39 +98,14 @@ interface ICygnusCollateralVoid is ICygnusCollateralControl {
      */
     function REINVEST_REWARD() external view returns (uint256);
 
-    /**
-     *  @return The address of the contract that gives out rewards to this shuttle's LP Token holders
-     */
-    function getMasterChef() external view returns (address);
-
-    /**
-     *  @return The pool id of this shuttle's LP Token in the masterchef contract
-     */
-    function getPoolId() external view returns (uint256);
-
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Initializes the chef to reinvest rewards
-     *  @param _dexRouter The address of the router that is used by the DEX that owns the liquidity pool
-     *  @param _rewarder The address of the masterchef or rewarder contract (Must be compatible with masterchef)
-     *  @param _rewardsToken The address of the token that rewards are paid in
-     *  @param _pid The Pool ID of this LP Token pair in Masterchef's contract
-     *  @param _swapFeeFactor The swap fee factor used by this DEX
-     *  @custom:security non-reentrant
-     */
-    function initializeVoid(
-        IDexRouter02 _dexRouter,
-        IMiniChef _rewarder,
-        address _rewardsToken,
-        uint256 _pid,
-        uint256 _swapFeeFactor
-    ) external;
-
-    /**
      *  @notice Reinvests all rewards from the masterchef to buy more LP Tokens
      */
-    function reinvestRewards() external;
+    function chargeVoid() external;
+
+    function voidActivated() external view returns (bool);
 }
