@@ -15,6 +15,11 @@ Allows users to interact with Cygnus Core contracts to:
 **Leverage**
 
 ```
+/**
+ *  @param token0 The address of token0 from the LP Token
+ *  @param token1 The address of token1 from the LP Token
+ *  @param amountDai DAI amount to convert to token0 and token1 of an LP Token
+ */
 function convertDAIToTokens(address lpTokenPair, uint256 amountDai)
    internal
    returns (uint256 totalAmountA, uint256 totalAmountB);
@@ -22,11 +27,19 @@ function convertDAIToTokens(address lpTokenPair, uint256 amountDai)
 
 The `CygnusBorrow` contract will send `amountDai` to the router. The router then converts 50% of DAI to the `CygnusBorrow`'s collateral (an LP Token) token0 and 50% to token1. It then mints the LP Token, sends it to the collateral contract and mints CygLP to the borrower.
 
+We pass token0 and token1 as parameters as these are used by the previous function.
+
 <hr/>
 
 **Deleverage**
 
 ```
+
+/**
+ *  @param amountTokenA The amount of token A to convert to DAI
+ *  @param amountTokenB The amount of token B to convert to DAI
+ *  @param lpTokenPair The address of the LP Token
+ */
 function convertLPTokenToDAI(
     uint256 amountTokenA,
     uint256 amountTokenB,
