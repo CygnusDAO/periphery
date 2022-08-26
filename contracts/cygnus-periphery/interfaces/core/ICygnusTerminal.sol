@@ -14,29 +14,29 @@ interface ICygnusTerminal is IErc20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error CantMintZero Emitted when attempting to mint zero amount of tokens
+     *  @custom:error CantMintZeroShares Emitted when attempting to mint zero amount of tokens
      */
-    error CygnusTerminal__CantMintZero(uint256);
+    error CygnusTerminal__CantMintZeroShares();
 
     /**
-     *  @custom:error CantBurnZero Emitted when attempting to redeem zero amount of tokens
+     *  @custom:error CantBurnZeroAssets Emitted when attempting to redeem zero amount of tokens
      */
-    error CygnusTerminal__CantRedeemZero(uint256);
+    error CygnusTerminal__CantRedeemZeroAssets();
 
     /**
-     *  @custom:error BurnAmountInvalid Emitted when attempting to redeem over amount of tokens
+     *  @custom:error RedeemAmountInvalid Emitted when attempting to redeem over amount of tokens
      */
-    error CygnusTerminal__RedeemAmountInvalid(uint256 invalidAmount, uint256 contractBalance);
+    error CygnusTerminal__RedeemAmountInvalid(uint256 assets, uint256 totalBalance);
 
     /**
      *  @custom:error MsgSenderNotAdmin Emitted when attempting to call Admin-only functions
      */
-    error CygnusTerminal__MsgSenderNotAdmin(address caller, address factoryAdmin);
+    error CygnusTerminal__MsgSenderNotAdmin(address sender, address factoryAdmin);
 
     /**
-     *  @custom:error MsgSenderNotFactory Emitted when attempting to call Factory-only functions
+     *  @custom:error CantSweepUnderlying Emitted when trying to sweep the underlying from this contract
      */
-    error CygnusTerminal__MsgSenderNotFactory(address);
+    error CygnusTerminal__CantSweepUnderlying(address token, address underlying);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -51,23 +51,24 @@ interface ICygnusTerminal is IErc20Permit {
 
     /**
      *  @notice Logs when an asset is minted
-     *  @param sender The address of `CygnusAltair`
-     *  @param minter Address of the minter.
-     *  @param mintAmount Amount initial is worth at the current exchange rate.
-     *  @param poolTokens Amount of the tokens to be minted.
-     *  @custom:event Mint Emitted when tokens are minted
+     *  @param sender The address of `CygnusAltair` or the sender of the function call
+     *  @param recipient Address of the minter
+     *  @param assets Amount of assets being deposited
+     *  @param shares Amount of pool tokens being minted
+     *  @custom:event Mint Emitted when CygLP or CygDai pool tokens are minted
      */
-    event Mint(address indexed sender, address indexed minter, uint256 mintAmount, uint256 poolTokens);
+    event Deposit(address indexed sender, address indexed recipient, uint256 assets, uint256 shares);
 
     /**
      *  @notice Logs when an asset is redeemed
-     *  @param sender The address of `CygnusAltair`
-     *  @param redeemer The address of the redeemer
-     *  @param redeemAmount The amount to redeem
-     *  @param poolTokens The amount of PoolTokens to burn
-     *  @custom:event Redeem Emitted when Albireo or Deneb tokens are redeemed
+     *  @param sender The address of `CygnusAltair` or the sender of the function call
+     *  @param recipient The address of the recipient of assets
+     *  @param owner The address of the owner of the pool tokens
+     *  @param assets The amount of assets to redeem
+     *  @param shares The amount of pool tokens burnt
+     *  @custom:event Redeem Emitted when CygLP or CygDAI are redeemed
      */
-    event Redeem(address indexed sender, address indexed redeemer, uint256 redeemAmount, uint256 poolTokens);
+    event Withdraw(address indexed sender, address indexed recipient, address indexed owner, uint256 assets, uint256 shares);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
            3. CONSTANT FUNCTIONS
@@ -104,31 +105,30 @@ interface ICygnusTerminal is IErc20Permit {
 
     /**
      *  @dev This low level function should only be called from `CygnusAltair` contract only
-     *  @param minter Address of the minter
-     *  @return poolTokens Amount of pool tokens to mint
+     *  @param assets The amount of assets to deposit
+     *  @param recipient Address of the minter
+     *  @return shares Amount of pool tokens to mint
      *  @custom:security non-reentrant
      */
-    function mint(address minter) external returns (uint256 poolTokens);
+    function deposit(uint256 assets, address recipient) external returns (uint256 shares);
 
     /**
      *  @dev This low level function should only be called from `CygnusAltair` contract only
-     *  @param holder Address of the redeemer
+     *  @param shares The amount of shares to redeem for assets
+     *  @param recipient The address of the redeemer
+     *  @param owner The address of the account who owns the shares
      *  @return redeemAmount The holder's shares
      *  @custom:security non-reentrant
      */
-    function redeem(address holder) external returns (uint256 redeemAmount);
+    function redeem(
+        uint256 shares,
+        address recipient,
+        address owner
+    ) external returns (uint256 redeemAmount);
 
     /**
-     *  @notice Uniswap's skim function
-     *  @param recipient Address of user skimming difference between total balance stored and actual balance
-     *  @custom:security non-reentrant
+     *  @notice Recovers any ERC20 token accidentally sent to this contract. Sent to DAO reserves
+     *  @param token The address of the token we are recovering
      */
-    function skim(address recipient) external;
-
-    /**
-     *  @notice Uniswap's sync function
-     *  @notice Force real balance to match totalBalance
-     *  @custom:security non-reentrant
-     */
-    function sync() external;
+    function sweepToken(address token) external;
 }

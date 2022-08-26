@@ -75,14 +75,15 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
-    /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Overrides the exchange rate of `CygnusTerminal` for borrow contracts to mint reserves
+     *  @notice This low level function should only be called from `CygnusAltair` contract only
+     *  @param borrower The address of the borrower being liquidated
+     *  @param liquidator The address of the liquidator
+     *  @return seizeTokens The amount of tokens to liquidate
      */
-    function exchangeRate() external override returns (uint256);
-
-    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+    function liquidate(address borrower, address liquidator) external returns (uint256 seizeTokens);
 
     /**
      *  @notice This low level function should only be called from Router contract only.
@@ -99,15 +100,7 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
     ) external;
 
     /**
-     *  @notice This low level function should only be called from `CygnusAltair` contract only
-     *  @param borrower The address of the borrower being liquidated
-     *  @param liquidator The address of the liquidator
-     *  @return seizeTokens The amount of tokens to liquidate
+     *  @notice Overrides the exchange rate of `CygnusTerminal` for borrow contracts to mint reserves
      */
-    function liquidate(address borrower, address liquidator) external returns (uint256 seizeTokens);
-
-    /**
-     *  @notice Overrides the sync of `CygnusTerminal`
-     */
-    function sync() external override;
+    function exchangeRate() external override returns (uint256);
 }

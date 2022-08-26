@@ -6,6 +6,7 @@ import "./ICygnusAltairCall.sol";
 
 // Interfaces
 import { IYakAdapter } from "./IYakAdapter.sol";
+import { IDexRouter02 } from "./core/IDexRouter.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
@@ -16,49 +17,14 @@ interface ICygnusAltairX is ICygnusAltairCall {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error TransactionExpired Emitted when the current block.timestamp is past deadline
-     */
-    error CygnusAltair__TransactionExpired(uint256);
-
-    /**
      *  @custom:error NotnativeTokenSender Emitted when the underlying is not Avax
      */
     error CygnusAltair__NotNativeTokenSender(address poolToken);
 
     /**
-     *  @custom:error InsufficientTokenAmount Emitted when quoting amount is <= 0
+     *  @custom:error TransactionExpired Emitted when the current block.timestamp is past deadline
      */
-    error CygnusAltair__InsufficientTokenAmount(uint256 amountTokenA);
-
-    /**
-     *  @custom:error InsufficientTokenAAmount Emitted when optimal Token A amount is less than mininum
-     */
-    error CygnusAltair__InsufficientTokenAAmount(uint256 amountTokenA);
-
-    /**
-     *  @custom:error InsufficientTokenBAmount Emitted when optimal Token B amount is less than mininum
-     */
-    error CygnusAltair__InsufficientTokenBAmount(uint256 amountTokenB);
-
-    /**
-     *  @custom:error InsufficientReserves Emitted when there are no reserves for Token A && Token B
-     */
-    error CygnusAltair__InsufficientReserves(uint256 reservesTokenA, uint256 reservesTokenB);
-
-    /**
-     *  @custom:error MsgSenderNotRouter Emitted when the msg sender is not the router in the leverage function
-     */
-    error CygnusAltair__MsgSenderNotRouter(address sender, address origin, address borrower);
-
-    /**
-     *  @custom:error MsgSenderNotBorrowable Emitted when the msg sender is not the borrow contract
-     */
-    error CygnusAltair__MsgSenderNotBorrowable(address sender, address borrowable);
-
-    /**
-     *  @custom:error MsgSenderNotCollateral Emitted when the msg sender is not the collateral contract
-     */
-    error CygnusAltair__MsgSenderNotCollateral(address sender, address origin, address collateral);
+    error CygnusAltair__TransactionExpired(uint256);
 
     /**
      *  @custom:error InsufficientBurnAmountA Emitted when the burn amount is 0 for token A
@@ -71,9 +37,29 @@ interface ICygnusAltairX is ICygnusAltairCall {
     error CygnusAltair__InsufficientBurnAmountB(uint256 amount);
 
     /**
+     *  @custom:error MsgSenderNotRouter Emitted when the msg sender is not the router in the leverage function
+     */
+    error CygnusAltair__MsgSenderNotRouter(address sender, address origin, address borrower);
+
+    /**
+     *  @custom:error MsgSenderNotBorrowable Emitted when the msg sender is not the borrow contract
+     */
+    error CygnusAltair__MsgSenderNotBorrowable(address sender, address borrowable);
+
+    /**
      *  @custom:error InvalidRedeemAmount Emitted when the redeem amount is 0 or less
      */
     error CygnusAltair__InvalidRedeemAmount(address redeemer, uint256 redeemTokens);
+
+    /**
+     *  @custom:error MsgSenderNotCollateral Emitted when the msg sender is not the collateral contract
+     */
+    error CygnusAltair__MsgSenderNotCollateral(address sender, address collateral);
+
+    /**
+     *  @custom:error MsgSenderNotAdmin Emitted when the msg sender is not the cygnus factory admin
+     */
+    error CygnusAltair__MsgSenderNotAdmin(address sender, address admin);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -100,61 +86,18 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function LOCAL_BYTES() external view returns (bytes memory);
 
     /**
-     *  @return joeYakAdapter The address of TraderJoe's Yak adapter
+     *  @return USDC The address of USDC to return the best price between dai/avax or usdc/avax
      */
-    function JOE_ADAPTER() external view returns (IYakAdapter joeYakAdapter);
+    function USDC() external pure returns (address);
 
     /**
-     *  @return pangolinYakAdapter The address of Pangolin's Yak adapter
+     *  @return YAK_ROUTER The address of Yak's dex aggregator
      */
-    function PANGOLIN_ADAPTER() external view returns (IYakAdapter pangolinYakAdapter);
-
-    /**
-     *  @return platypusYakAdapter The address of Platypus' Yak adapter
-     */
-    function PLATYPUS_ADAPTER() external view returns (IYakAdapter platypusYakAdapter);
-
-    /**
-     *  @notice Function to return collateral and borrow contract addresses for a specific LP Token in Cygnus
-     *  @param lpTokenPair The address of the LP Token from DEX
-     *  @return collateral The address of the Cygnus collateral for this specific LP Token
-     *  @return borrowable The address of the Cygnus borrow contract for this specific LP Token
-    function getShuttle(address lpTokenPair) external view returns (address collateral, address borrowable);
-     */
+    function YAK_ROUTER() external pure returns (IYakAdapter);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @notice Creates a new position in Cygnus for any Erc20 token
-     *  @param terminalToken The address of the collateral/borrow pool token that represents the minted position
-     *  @param amount The amount to be minted
-     *  @param recipient The account that should receive the tokens
-     *  @param deadline The time by which the transaction must be included to effect the change
-     */
-    function mint(
-        address terminalToken,
-        uint256 amount,
-        address recipient,
-        uint256 deadline
-    ) external returns (uint256 tokens);
-
-    /**
-     *  @notice Destroys `amount` of tokens, emitting a burn event and decreasing total supply
-     *  @param terminalToken The address of the collateral/borrow pool token
-     *  @param tokens The Cygnus pool token
-     *  @param recipient The account that should receive the tokens
-     *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param permitData The permit calldata (if any)
-     */
-    function redeem(
-        address terminalToken,
-        uint256 tokens,
-        address recipient,
-        uint256 deadline,
-        bytes memory permitData
-    ) external returns (uint256 amount);
 
     /**
      *  @notice Main function used in Cygnus to borrow DAI
@@ -247,30 +190,38 @@ interface ICygnusAltairX is ICygnusAltairCall {
     ) external;
 
     /**
-     *  @notice Swap tokens function used by Leverage to turn DAI into LP Token assets
-     *  @param tokenIn address of the token we are swapping
-     *  @param tokenOut Address of the token we are receiving
-     *  @param amount Amount of TokenIn we are swapping
-
-    function swapExactTokensForTokens(
-        address tokenIn,
-        address tokenOut,
-        uint256 amount
-    ) internal virtual {
-        // Create the path for the swap
-        address[] memory path = new address[](2);
-
-        // Path of the token we are swapping
-        path[0] = address(tokenIn);
-
-        // Path of the token we are receiving
-        path[1] = address(tokenOut);
-
-        // Safe Approve router
-        AltairHelper.approveDexRouter(tokenIn, address(JOE_ROUTER), type(uint256).max);
-
-        // Swap tokens
-        JOE_ROUTER.swapExactTokensForTokens(amount, 0, path, address(this), type(uint256).max);
-    }
+     *  @notice Function that is called by the CygnusBorrow contract and decodes data to carry out the leverage
+     *  @notice Will only succeed if: Caller is borrow contract & Borrow contract was called by router
+     *  @param sender Address of the contract that initialized the borrow transaction (address of the router)
+     *  @param borrower Address of the borrower that is leveraging
+     *  @param borrowAmount The amount to leverage
+     *  @param data The encoded byte data passed from the CygnusBorrow contract to the router
      */
+    function altairBorrow_O9E(
+        address sender,
+        address borrower,
+        uint256 borrowAmount,
+        bytes calldata data
+    ) external override(ICygnusAltairCall);
+
+    /**
+     *  @notice Function that is called by the CygnusCollateral contract and decodes data to carry out the deleverage
+     *  @notice Will only succeed if: Caller is collateral contract & collateral contract was called by router
+     *  @param sender Address of the contract that initialized the redeem transaction (address of the router)
+     *  @param redeemAmount The amount to deleverage
+     *  @param data The encoded byte data passed from the CygnusCollateral contract to the router
+     */
+    function altairRedeem_u91A(
+        address sender,
+        uint256 redeemAmount,
+        address token0,
+        address token1,
+        bytes calldata data
+    ) external override(ICygnusAltairCall);
+
+    /**
+     *  @notice Add adapter to optimize leverage and deleverage
+     *  @param adapter The uint8 identifier for the adapter we are adding
+     */
+    function addAdapter(uint8 adapter) external;
 }

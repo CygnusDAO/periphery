@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
+
 pragma solidity >=0.8.4;
 
 // Dependencies
@@ -20,31 +21,9 @@ interface ICygnusCollateralControl is ICygnusTerminal {
      */
     error CygnusCollateralControl__ParameterNotInRange(uint256 minRange, uint256 maxRange, uint256 value);
 
-    /**
-     *  @custom:error CygnusOracleAlreadySet Emitted when the new oracle address is the same as the current oracle
-     */
-    error CygnusCollateralControl__CygnusOracleAlreadySet(address currentOracle, address newOracle);
-
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════  
             2. CUSTOM EVENTS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @notice Updated directly from the factory -> First update factory oracle then update shuttle
-     *  @notice Logs when the oracle is updated by admins
-     *  @param oldPriceOracle The address of the previous price oracle
-     *  @param newPriceOracle The address of the new price oracle for this shuttle
-     *  @custom:event Emitted when a new price oracle is set
-     */
-    event NewPriceOracle(IChainlinkNebulaOracle oldPriceOracle, IChainlinkNebulaOracle newPriceOracle);
-
-    /**
-     *  @notice Logs when the liquidation incentive is updated by admins
-     *  @param oldLiquidationIncentive The old incentive for liquidators taken from the collateral
-     *  @param newLiquidationIncentive The new liquidation incentive for this shuttle
-     *  @custom:event NewLiquidationIncentive Emitted when a new liquidation incentive is set
-     */
-    event NewLiquidationIncentive(uint256 oldLiquidationIncentive, uint256 newLiquidationIncentive);
 
     /**
      *  @notice Logs when the debt ratio is updated by admins
@@ -54,6 +33,13 @@ interface ICygnusCollateralControl is ICygnusTerminal {
      */
     event NewDebtRatio(uint256 oldDebtRatio, uint256 newDebtRatio);
 
+    /**
+     *  @notice Logs when the liquidation incentive is updated by admins
+     *  @param oldLiquidationIncentive The old incentive for liquidators taken from the collateral
+     *  @param newLiquidationIncentive The new liquidation incentive for this shuttle
+     *  @custom:event NewLiquidationIncentive Emitted when a new liquidation incentive is set
+     */
+    event NewLiquidationIncentive(uint256 oldLiquidationIncentive, uint256 newLiquidationIncentive);
     /**
      *  @notice Logs when the liquidation fee is updated by admins
      *  @param oldLiquidationFee The previous fee the protocol kept as reserves from each liquidation
@@ -71,35 +57,29 @@ interface ICygnusCollateralControl is ICygnusTerminal {
     // ────────────── Important Addresses ─────────────
 
     /**
-     *  @return The address of AlbireoTokenB (if available).
+     *  @return borrowable The address of the Cygnus borrow contract for this collateral which holds DAI
      */
-    function cygnusDai() external view returns (address);
+    function borrowable() external view returns (address);
 
     /**
-     *  @notice The address of the LP Token
-     */
-    function lpTokenPair() external pure returns (address);
-
-    /**
-     *  @notice Not immutable in case we need to update oracle from factory
-     *  @return The address of the Cygnus Price Oracle
+     *  @return cygnusNebulaOracle The address of the Cygnus Price Oracle
      */
     function cygnusNebulaOracle() external view returns (IChainlinkNebulaOracle);
 
     // ────────────── Current Pool Rates ──────────────
 
     /**
-     *  @return The current debt ratio for this shuttle, default at 80% (x5 leverage).
+     *  @return debtRatio The current debt ratio for this shuttle, default at 95%
      */
     function debtRatio() external view returns (uint256);
 
     /**
-     *  @return The current liquidation incentive for this shuttle, default at 5%.
+     *  @return liquidationIncentive The current liquidation incentive for this shuttle
      */
     function liquidationIncentive() external view returns (uint256);
 
     /**
-     *  @return The current liquidation fee the protocol keeps from each liquidation, default at 0%.
+     *  @return liquidationFee The current liquidation fee the protocol keeps from each liquidation
      */
     function liquidationFee() external view returns (uint256);
 
@@ -107,29 +87,28 @@ interface ICygnusCollateralControl is ICygnusTerminal {
 
     /**
      *  @notice Set a minimum for borrow protection
-     *  @return Minimum debt ratio at which the collateral becomes liquidatable, equivalent to 50% (x2 leverage)
+     *  @return DEBT_RATIO_MIN Minimum debt ratio at which the collateral becomes liquidatable
      */
     function DEBT_RATIO_MIN() external pure returns (uint256);
 
     /**
-     *  @return Maximum debt ratio at which the collateral becomes liquidatable, equivalent to 87.5% (x8 leverage)
+     *  @return DEBT_RATIO_MAX Maximum debt ratio at which the collateral becomes liquidatable
      */
     function DEBT_RATIO_MAX() external pure returns (uint256);
 
     /**
-     *  @notice Set a minimum to for lender protection
-     *  @return The minimum liquidation incentive for liquidators, equivalent to 2% of collateral
+     *  @return LIQUIDATION_INCENTIVE_MIN The minimum liquidation incentive for liquidators that can be set
      */
     function LIQUIDATION_INCENTIVE_MIN() external pure returns (uint256);
 
     /**
-     *  @return The maximum liquidation incentive for liquidators, equivalent to 20% of collateral
+     *  @return LIQUIDATION_INCENTIVE_MAX The maximum liquidation incentive for liquidators that can be set
      */
     function LIQUIDATION_INCENTIVE_MAX() external pure returns (uint256);
 
     /**
      *  @notice No minimum as the default is 0
-     *  @return Maximum fee the protocol is allowed to keep from each liquidation, equivalent to 20%
+     *  @return LIQUIDATION_FEE_MAX Maximum fee the protocol is keeps from each liquidation
      */
     function LIQUIDATION_FEE_MAX() external pure returns (uint256);
 
@@ -138,14 +117,6 @@ interface ICygnusCollateralControl is ICygnusTerminal {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
-
-    /**
-     *  @notice 👽
-     *  @notice Updates price oracle with the factory's latest oracle if necessary
-     *  @dev Factory must be updated with the new oracle first
-     *  @custom:security non-reentrant
-     */
-    function setNebulaOracle() external;
 
     /**
      *  @notice 👽

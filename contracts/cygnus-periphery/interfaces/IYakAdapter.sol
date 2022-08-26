@@ -57,4 +57,18 @@ interface IYakAdapter {
         address _to,
         uint256 _fee
     ) external;
+
+    struct Query {
+        address adapter;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountOut;
+    }
+
+    function queryNoSplit(
+        uint256 _amountIn,
+        address _tokenIn,
+        address _tokenOut,
+        uint8[] calldata _options
+    ) external view returns (Query memory);
 }

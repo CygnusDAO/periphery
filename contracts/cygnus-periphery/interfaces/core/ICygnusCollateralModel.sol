@@ -2,12 +2,12 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusCollateralControl } from "./ICygnusCollateralControl.sol";
+import { ICygnusCollateralVoid } from "./ICygnusCollateralVoid.sol";
 
 /**
  *  @title ICygnusCollateralModel The interface for querying any borrower's positions and find liquidity/shortfalls
  */
-interface ICygnusCollateralModel is ICygnusCollateralControl {
+interface ICygnusCollateralModel is ICygnusCollateralVoid {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -26,17 +26,6 @@ interface ICygnusCollateralModel is ICygnusCollateralControl {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
-
-    /**
-     *  @notice Checks an account's liquidity or shortfall
-     *  @param borrower The address of the borrower, reverts if address(0)
-     *  @param amountDAI The total amount of DAI the user can borrow
-     *  @return liquidity the account liquidity. If none, return 0
-     *  @return shortfall the account shortfall. If none, return 0
-     */
-    function accountLiquidity(address borrower, uint256 amountDAI)
-        external
-        returns (uint256 liquidity, uint256 shortfall);
 
     /**
      *  @notice Gets an account's liquidity or shortfall
@@ -59,7 +48,7 @@ interface ICygnusCollateralModel is ICygnusCollateralControl {
      *  @param accountBorrows The amount the user wants to borrow.
      *  @return Whether the account can borrow.
      */
-    function canBorrow(
+    function canBorrow_J2u(
         address borrower,
         address borrowableToken,
         uint256 accountBorrows

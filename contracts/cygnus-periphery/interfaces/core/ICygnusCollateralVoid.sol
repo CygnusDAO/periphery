@@ -3,7 +3,7 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusTerminal } from "./ICygnusTerminal.sol";
+import { ICygnusTerminal, ICygnusCollateralControl } from "./ICygnusCollateralControl.sol";
 
 // Interfaces
 import { IDexPair } from "./IDexPair.sol";
@@ -13,15 +13,10 @@ import { IMiniChef } from "./IMiniChef.sol";
 /**
  *  @title ICygnusCollateralVoid The interface for the masterchef
  */
-interface ICygnusCollateralVoid is ICygnusTerminal {
+interface ICygnusCollateralVoid is ICygnusCollateralControl {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @custom:error InvalidRewardsToken The rewards token can't be the zero address
-     */
-    error CygnusCollateralChef__VoidAlreadyInitialized(address tokenReward);
 
     /**
      *  @custom:error OnlyAccountsAllowed Avoid contracts
@@ -29,9 +24,24 @@ interface ICygnusCollateralVoid is ICygnusTerminal {
     error CygnusCollateralChef__OnlyEOAAllowed(address sender, address origin);
 
     /**
+     *  @custom:error InvalidRewardsToken The rewards token can't be the zero address
+     */
+    error CygnusCollateralChef__VoidAlreadyInitialized(address tokenReward);
+
+    /**
      *  @custom:error NotNativeTokenSender Avoid receiving unless sender is native token
      */
     error CygnusCollateralVoid__NotNativeTokenSender(address sender, address origin);
+
+    /**
+     *  @custom:error RedeemAmountExceedsBalance Avoid redeeming more than pool balance
+     */
+    error CygnusCollateralVoid__RedeemAmountExceedsBalance(uint256 redeemAmount, uint256 totalBalance);
+
+    /**
+     *  @custom:error CantMintZero Avoid redeeming 0 tokens
+     */
+    error CygnusCollateralVoid__CantMintZero(uint256 mintTokens);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -68,44 +78,58 @@ interface ICygnusCollateralVoid is ICygnusTerminal {
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
-    function nativeToken() external view returns (address);
-
-    function token0() external view returns (address);
-
-    function token1() external view returns (address);
-
-    function pid() external view returns (uint256);
-
-    function rewarder() external view returns (IMiniChef);
-
     /**
-     *  @return The address of the router from the DEX this shuttle's LP Token belongs to
-     */
-    function dexRouter() external view returns (IDexRouter02);
-
-    /**
-     *  @return The address of the token that is earned as a bonus by providing liquidity to the DEX
-     */
-    function rewardsToken() external view returns (address);
-
-    /**
-     *  @return The fee that each DEX charges for a swap (usually 0.3%)
-     */
-    function swapFeeFactor() external view returns (uint256);
-
-    /**
-     *  @return The reward that is handed to the user who reinvested the shuttle's rewards to buy more LP Tokens
+     *  @return REINVEST_REWARD The % of rewards paid to the user who reinvested this shuttle's rewards to buy more LP
      */
     function REINVEST_REWARD() external view returns (uint256);
+
+    /**
+     *  @notice Returns this contract's void values (if activated) showing the masterchef address, pool id, etc.
+     *  @return rewarder_ The address of the masterchef/rewarder
+     *  @return pid_ The pool ID the collateral's underlying LP Token belongs to in the masterchef/rewarder
+     *  @return voidActivated_ Whether or not this contract has the void activated
+     *  @return rewardsToken_ The address of the rewards token from the Dex
+     *  @return dexSwapFee_ The fee the dex charges for swaps (divided by 1000 ie Uniswap charges 0.3%, swap fee is 997)
+     *  @return dexRouter_ The address of the dex' router used to swap between tokens
+     */
+    function getCygnusVoid()
+        external
+        view
+        returns (
+            IMiniChef rewarder_,
+            uint256 pid_,
+            bool voidActivated_,
+            address rewardsToken_,
+            uint256 dexSwapFee_,
+            IDexRouter02 dexRouter_
+        );
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Reinvests all rewards from the masterchef to buy more LP Tokens
+     *  @notice Initializes the chef to reinvest rewards
+     *  @param _dexRouter The address of the router that is used by the DEX that owns the liquidity pool
+     *  @param _rewarder The address of the masterchef or rewarder contract (Must be compatible with masterchef)
+     *  @param _rewardsToken The address of the token that rewards are paid in
+     *  @param _pid The Pool ID of this LP Token pair in Masterchef's contract
+     *  @param _swapFeeFactor The swap fee factor used by this DEX
+     *  @custom:security non-reentrant
      */
-    function chargeVoid() external;
+    function chargeVoid(
+        IDexRouter02 _dexRouter,
+        IMiniChef _rewarder,
+        address _rewardsToken,
+        uint256 _pid,
+        uint256 _swapFeeFactor
+    ) external;
 
-    function voidActivated() external view returns (bool);
+    /**
+     *  @notice Reinvests all rewards from the masterchef to buy more LP Tokens to deposit in the masterchef.
+     *          This makes totalBalance increase in this contract, increasing the exchangeRate between
+     *          CygnusLP and underlying, thus lowering user's debt ratios
+     *  @custom:security non-reentrant
+     */
+    function reinvestRewards_y7b() external;
 }
