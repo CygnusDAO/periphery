@@ -3,7 +3,7 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusTerminal, ICygnusCollateralControl } from "./ICygnusCollateralControl.sol";
+import { ICygnusCollateralControl } from "./ICygnusCollateralControl.sol";
 
 // Interfaces
 import { IDexPair } from "./IDexPair.sol";
@@ -85,23 +85,21 @@ interface ICygnusCollateralVoid is ICygnusCollateralControl {
 
     /**
      *  @notice Returns this contract's void values (if activated) showing the masterchef address, pool id, etc.
-     *  @return rewarder_ The address of the masterchef/rewarder
-     *  @return pid_ The pool ID the collateral's underlying LP Token belongs to in the masterchef/rewarder
-     *  @return voidActivated_ Whether or not this contract has the void activated
-     *  @return rewardsToken_ The address of the rewards token from the Dex
-     *  @return dexSwapFee_ The fee the dex charges for swaps (divided by 1000 ie Uniswap charges 0.3%, swap fee is 997)
-     *  @return dexRouter_ The address of the dex' router used to swap between tokens
+     *  @return _rewarder The address of the masterchef/rewarder
+     *  @return _dexRouter The address of the dex' router used to swap between tokens
+     *  @return _rewardsToken The address of the rewards token from the Dex
+     *  @return _pid The pool ID the collateral's underlying LP Token belongs to in the masterchef/rewarder
+     *  @return _dexSwapFee The fee the dex charges for swaps (divided by 1000 ie Uniswap charges 0.3%, swap fee is 997)
      */
     function getCygnusVoid()
         external
         view
         returns (
-            IMiniChef rewarder_,
-            uint256 pid_,
-            bool voidActivated_,
-            address rewardsToken_,
-            uint256 dexSwapFee_,
-            IDexRouter02 dexRouter_
+            IMiniChef _rewarder,
+            IDexRouter02 _dexRouter,
+            address _rewardsToken,
+            uint256 _pid,
+            uint256 _dexSwapFee
         );
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 

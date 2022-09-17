@@ -11,7 +11,7 @@ import { ICygnusCollateral } from "./interfaces/core/ICygnusCollateral.sol";
 import { ICygnusTerminal } from "./interfaces/core/ICygnusTerminal.sol";
 import { IWAVAX } from "./interfaces/core/IWAVAX.sol";
 import { IDexPair } from "./interfaces/core/IDexPair.sol";
-import { IErc20 } from "./interfaces/core/IErc20.sol";
+import { IERC20 } from "./interfaces/core/IERC20.sol";
 import { IDexRouter02 } from "./interfaces/core/IDexRouter.sol";
 import { ICygnusFactory } from "./interfaces/core/ICygnusFactory.sol";
 import { IYakAdapter } from "./interfaces/IYakAdapter.sol";
@@ -25,12 +25,12 @@ import { CygnusPoolAddress } from "./libraries/CygnusPoolAddress.sol";
  *  @title  CygnusAltair Periphery contract to interact with Cygnus Core contracts
  *  @author CygnusDAO
  *  @notice This contract details the functions for:
- *          - Minting CygLP and CygDAI
- *          - Redeeming CygLP and CygDAI
- *          - Borrowing DAI
- *          - Repaying DAI
- *          - Liquidating user's with DAI (pay back DAI, receive CygLP + bonus liquidation reward)
- *          - Liquidating user's and converting to DAI (pay back DAI, receive CygLP + bonus equivalent in DAI)
+ *          - Minting CygLP and CygUSD
+ *          - Redeeming CygLP and CygUSD
+ *          - Borrowing USDC
+ *          - Repaying USDC
+ *          - Liquidating user's with USDC (pay back USDC, receive CygLP + bonus liquidation reward)
+ *          - Liquidating user's and converting to USDC (pay back USDC, receive CygLP + bonus equivalent in USDC)
  *          - Leveraging LP tokens
  *          - Deleveraging LP Tokens
  */
@@ -108,12 +108,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     /**
      *  @inheritdoc ICygnusAltairX
      */
-    address public immutable override dai;
-
-    /**
-     *  @inheritdoc ICygnusAltairX
-     */
-    address public constant override USDC = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
+    address public immutable override usdc;
 
     /**
      *  @inheritdoc ICygnusAltairX
@@ -124,11 +119,6 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      *  @inheritdoc ICygnusAltairX
      */
     IYakAdapter public constant override YAK_ROUTER = IYakAdapter(0xC4729E56b831d74bBc18797e0e17A295fA77488c);
-
-    /**
-     *  @notice Adapters: TraderJoe for JOE pools, Sushi for Sushi, Pangolin for PNG, Platypus for stablecoins + Bonus
-     */
-    uint8[] public adapters = [0, 1, 4, 25, 28];
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTRUCTOR
@@ -146,8 +136,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Address of nativeToken in this chain
         nativeToken = ICygnusFactory(factory).nativeToken();
 
-        // Address of DAI in this chain
-        dai = ICygnusFactory(factory).dai();
+        // Address of USDC in this chain
+        usdc = ICygnusFactory(factory).usdc();
     }
 
     /**
@@ -221,7 +211,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      *  @return This contract's balance
      */
     function contractBalanceOf(address token) private view returns (uint256) {
-        return IErc20(token).balanceOf(address(this));
+        return IERC20(token).balanceOf(address(this));
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -281,7 +271,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
 
     /**
      *  @param borrowable Address of the Cygnus borrow contract
-     *  @param token Address of the token we are repaying (DAI)
+     *  @param token Address of the token we are repaying (USDC)
      *  @param borrower Address of the borrower who is repaying the loan
      *  @param amountMax The max available amount
      */
@@ -294,7 +284,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Repay
         uint256 amount = repayAmountInternal(borrowable, amountMax, borrower);
 
-        // Safe transfer DAI to borrowable
+        // Safe transfer USDC to borrowable
         token.safeTransfer(borrowable, amount);
 
         // Cygnus Borrow with address(0) to update borrow balances
@@ -337,8 +327,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
     }
 
-    // 2 FUNCTIONS: - CONVERT DAI TO LP'S TOKEN0 AND TOKEN1 FOR OPTIMAL LP DEPOSIT
-    //              - CONVERT LP TOKEN TO DAI
+    // 2 FUNCTIONS: - CONVERT USDC TO LP'S TOKEN0 AND TOKEN1 FOR OPTIMAL LP DEPOSIT
+    //              - CONVERT LP TOKEN TO USDC
 
     /**
      *  @notice Grants allowance to the dex' router to handle our rewards
@@ -350,7 +340,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         address router,
         uint256 amount
     ) internal {
-        if (IErc20(token).allowance(address(this), router) >= amount) {
+        if (IERC20(token).allowance(address(this), router) >= amount) {
             return;
         } else {
             token.safeApprove(router, type(uint256).max);
@@ -366,11 +356,19 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     function swapTokensInternal(
         address tokenIn,
         address tokenOut,
-        uint256 amountIn,
-        uint8[] memory opts
+        uint256 amountIn
     ) internal virtual {
+        // adapters
+        uint8[] memory adapters = new uint8[](5);
+
+        adapters[0] = 0;
+        adapters[1] = 1;
+        adapters[2] = 2;
+        adapters[3] = 7;
+        adapters[4] = 17;
+
         // Query adapters
-        IYakAdapter.Query memory query = YAK_ROUTER.queryNoSplit(amountIn, tokenIn, tokenOut, opts);
+        IYakAdapter.Query memory query = YAK_ROUTER.queryNoSplit(amountIn, tokenIn, tokenOut, adapters);
 
         // Approve adapter in router
         approveDexRouter(tokenIn, query.adapter, type(uint256).max);
@@ -384,29 +382,21 @@ contract CygnusAltairX is ICygnusAltairX, Context {
 
     /**
      *  @notice IMPORTANT
-     *          USDC is used as bridge token to convert to DAI. Avalanche liquidity is very highly concentrated in USDc.
-     *          Converting from LP token to USDc saves a lot for borrowers, even while using dex aggregators.
-     *  @notice This function gets called after calling `borrow` on CygnusBorrow contract and having `amountDai` of DAI
+     *          USDC is used as bridge token to convert to USDC. Avalanche liquidity is very highly concentrated in USDC
+     *          Converting from LP token to USDc saves a lot for borrowers, even while using dex aggregators
+     *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsdc` of USDC
      *  @param lpTokenPair The address of the LP Token
      *  @param token0 The address of token0 from the LP Token
      *  @param token1 The address of token1 from the LP Token
-     *  @param amountDai DAI amount to convert to token0 and token1 of an LP Token
+     *  @param amountUsdc USDC amount to convert to token0 and token1 of an LP Token
      */
-    function convertDAIToTokens(
+    function convertUsdcToTokens(
         address lpTokenPair,
         address token0,
         address token1,
-        uint256 amountDai
+        uint256 amountUsdc
     ) internal returns (uint256 totalAmountA, uint256 totalAmountB) {
-        // Create adapter options
-        uint8[] memory opts = new uint8[](5);
-
-        // Assign adapters to query, hardcode for gas savings always max 5
-        for (uint256 i = 0; i < 5; i++) {
-            opts[i] = adapters[i];
-        }
-
-        // ─────────────────────── 1. Check if token0 or token1 is already DAI
+        // ─────────────────────── 1. Check if token0 or token1 is already USDC
 
         // Placeholder tokenA
         address tokenA;
@@ -414,24 +404,21 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Placeholder tokenB
         address tokenB;
 
-        // If dai, then pool has enough liquidity to swap at minimal cost
-        if (token0 == dai || token1 == dai) {
-            // If token0 is dai, then assign tokenA to token0, else tokenA to token1
-            (tokenA, tokenB) = token0 == dai ? (token0, token1) : (token1, token0);
+        // If usdc, then swap from pool itself
+        if (token0 == usdc || token1 == usdc) {
+            // If token0 is USDC, then assign tokenA to token0, else tokenA to token1
+            (tokenA, tokenB) = token0 == usdc ? (token0, token1) : (token1, token0);
         } else {
-            // Not DAI, swap dai to USDc.e for lower slippage in Avalanche
-            swapTokensInternal(dai, USDC, amountDai, opts);
-
             // swap USDc to native token
-            swapTokensInternal(USDC, nativeToken, contractBalanceOf(USDC), opts);
+            swapTokensInternal(usdc, nativeToken, amountUsdc);
             // ─────────────────── 2. Check if token0 or token1 is already AVAX
 
             if (token0 == nativeToken || token1 == nativeToken) {
                 // If token0 is nativeToken, then assign tokenA to token0, else tokenA to token1
                 (tokenA, tokenB) = token0 == nativeToken ? (token0, token1) : (token1, token0);
             } else {
-                // None are DAI or native token, swap all native token to token0 to calculate optimal deposit
-                swapTokensInternal(nativeToken, token0, contractBalanceOf(nativeToken), opts);
+                // None are USDC or native token, swap all native token to token0 to calculate optimal deposit
+                swapTokensInternal(nativeToken, token0, contractBalanceOf(nativeToken));
 
                 // Assign tokenA to token0 and tokenB to token1
                 (tokenA, tokenB) = (token0, token1);
@@ -449,7 +436,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         uint256 swapAmount = optimalDepositA(contractBalanceOf(tokenA), reservesA, 997);
 
         // Swap optimal amount of tokenA to tokenB
-        swapTokensInternal(tokenA, tokenB, swapAmount, opts);
+        swapTokensInternal(tokenA, tokenB, swapAmount);
 
         // ─────────────────────── 4. Send token0 and token1 to lp token pair to call `mint` on next function
 
@@ -461,75 +448,58 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     }
 
     /**
-     *  @notice IMPORTANT
-     *          USDC is used as bridge token to convert to DAI. Avalanche liquidity is very highly concentrated in USDc.
-     *          Converting from LP token to USDc to DAI saves a lot for borrowers, even while using dex aggregators.
-     *  @notice Converts an amount of LP Token to DAI. It is called after calling `burn` on a uniswapV2 pair, which
+     *  @notice Converts an amount of LP Token to USDC. It is called after calling `burn` on a uniswapV2 pair, which
      *          receives amountTokenA of token0 and amountTokenB of token1.
-     *  @param amountTokenA The amount of token A to convert to DAI
-     *  @param amountTokenB The amount of token B to convert to DAI
+     *  @param amountTokenA The amount of token A to convert to USDC
+     *  @param amountTokenB The amount of token B to convert to USDC
      *  @param token0 The address of token0 from the LP Token pair
      *  @param token1 The address of token1 from the LP Token pair
      */
-    function convertLPTokenToDAI(
+    function convertLPTokenToUsdc(
         uint256 amountTokenA,
         uint256 amountTokenB,
         address token0,
         address token1
-    ) internal returns (uint256 amountDAI) {
-        // Create adapter options
-        uint8[] memory opts = new uint8[](5);
+    ) internal returns (uint256 amountUsdc) {
+        // ─────────────────────── 1. Check if token0 or token1 is already USDC
 
-        // Assign adapters to query, hardcode for gas savings always max 5
-        for (uint256 i = 0; i < 5; i++) {
-            opts[i] = adapters[i];
-        }
-
-        // ─────────────────────── 1. Check if token0 or token1 is already DAI
-
-        // If token0 or token1 is dai then swap with the pool
-        if (token0 == dai || token1 == dai) {
-            // Convert the other token to DAI and return
-            token0 == dai
-                ? swapTokensInternal(token1, dai, amountTokenB, opts)
-                : swapTokensInternal(token0, dai, amountTokenA, opts);
+        // If token0 or token1 is USDC then swap opposite and return
+        if (token0 == usdc || token1 == usdc) {
+            // Convert the other token to USDC and return
+            token0 == usdc
+                ? swapTokensInternal(token1, usdc, amountTokenB)
+                : swapTokensInternal(token0, usdc, amountTokenA);
 
             // Explicit return
-            return contractBalanceOf(dai);
+            return contractBalanceOf(usdc);
         }
-        // Not dai, check for nativeToken
+        // Not USDC, check for nativeToken
         else {
-            // ─────────────────── 3. Check if token0 or token1 is already nativeToken
+            // ─────────────────── 2. Not USDC, swap to native token
 
             if (token0 == nativeToken || token1 == nativeToken) {
-                // Avoid converting usdc to avax and back to usdc
-                if (token0 != USDC || token1 != USDC) {
-                    // Convert token0 or token1 to nativeToken
-                    token0 == nativeToken
-                        ? swapTokensInternal(token1, nativeToken, amountTokenB, opts)
-                        : swapTokensInternal(token0, nativeToken, amountTokenA, opts);
-                }
+                // Convert token0 or token1 to nativeToken
+                token0 == nativeToken
+                    ? swapTokensInternal(token1, nativeToken, amountTokenB)
+                    : swapTokensInternal(token0, nativeToken, amountTokenA);
             }
-            // None are DAI or nativeToken, convert all to nativeToken
+            // None are USDC or nativeToken, convert all to nativeToken
             else {
                 // Swap token0 to nativeToken
-                swapTokensInternal(token0, nativeToken, amountTokenA, opts);
+                swapTokensInternal(token0, nativeToken, amountTokenA);
 
                 // Swap token 1 to nativeToken
-                swapTokensInternal(token1, nativeToken, amountTokenB, opts);
+                swapTokensInternal(token1, nativeToken, amountTokenB);
             }
         }
 
-        // ─────────────────────── 4. Swap all nativeTokens to DAI */
+        // ─────────────────────── 3. Swap all nativeTokens to USDC
 
         // Convert nativeToken to USDc due to liquidity concentrated in USDc
-        swapTokensInternal(nativeToken, USDC, contractBalanceOf(nativeToken), opts);
+        swapTokensInternal(nativeToken, usdc, contractBalanceOf(nativeToken));
 
-        // Swap USDC to DAI checking Platypus adapter
-        swapTokensInternal(USDC, dai, contractBalanceOf(USDC), opts);
-
-        // Total Amount DAI
-        amountDAI = contractBalanceOf(dai);
+        // Total Amount USDC
+        amountUsdc = contractBalanceOf(usdc);
     }
 
     /**
@@ -569,10 +539,10 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         }
 
         // Repay and refund
-        uint256 amountDai = convertLPTokenToDAI(amountAMax, amountBMax, token0, token1);
+        uint256 amountUsdc = convertLPTokenToUsdc(amountAMax, amountBMax, token0, token1);
 
-        // Repay DAI
-        repayAndRefundInternal(borrowable, dai, borrower, amountDai);
+        // Repay USDC
+        repayAndRefundInternal(borrowable, usdc, borrower, amountUsdc);
 
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
@@ -628,7 +598,6 @@ contract CygnusAltairX is ICygnusAltairX, Context {
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
-    //  MINT CYGLP / CYGDAI ──────────────────────────
     //  REPAY BORROW ─────────────────────────────────
 
     /**
@@ -643,7 +612,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Amount to repay
         amount = repayAmountInternal(borrowable, amountMax, borrower);
 
-        // Transfer DAI from msg sender to borrow contract
+        // Transfer USDC from msg sender to borrow contract
         ICygnusBorrow(borrowable).underlying().safeTransferFrom(_msgSender(), borrowable, amount);
 
         // Call borrow to update borrower's borrow balance
@@ -665,7 +634,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Amount to repay
         amount = repayAmountInternal(borrowable, amountMax, borrower);
 
-        // Transfer DAI
+        // Transfer USDC
         ICygnusBorrow(borrowable).underlying().safeTransferFrom(_msgSender(), borrowable, amount);
 
         // Liquidate
@@ -676,17 +645,17 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      *  @notice Function used for testing, should or should not be used
      *  @inheritdoc ICygnusAltairX
      */
-    function liquidateToDai(
+    function liquidateToUsdc(
         address borrowable,
         uint256 amountMax,
         address borrower,
         address recipient,
         uint256 deadline
-    ) external virtual override checkDeadline(deadline) returns (uint256 amountDai) {
+    ) external virtual override checkDeadline(deadline) returns (uint256 amountUsdc) {
         // Amount to repay
         uint256 amount = repayAmountInternal(borrowable, amountMax, borrower);
 
-        // Transfer DAI
+        // Transfer USDC
         ICygnusBorrow(borrowable).underlying().safeTransferFrom(_msgSender(), borrowable, amount);
 
         // Liquidate and increase liquidator's CygLP amount
@@ -713,11 +682,11 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Burn LP Token and return amountA and amountB
         (uint256 amountAMax, uint256 amountBMax) = IDexPair(lpTokenPair).burn(address(this));
 
-        // Convert amountA and amountB to DAI
-        amountDai = convertLPTokenToDAI(amountAMax, amountBMax, token0, token1);
+        // Convert amountA and amountB to USDC
+        amountUsdc = convertLPTokenToUsdc(amountAMax, amountBMax, token0, token1);
 
-        // Transfer DAI to liquidator
-        IErc20(dai).transfer(recipient, amountDai);
+        // Transfer USDC to liquidator
+        IERC20(usdc).transfer(recipient, amountUsdc);
     }
 
     //  LEVERAGE ─────────────────────────────────────
@@ -727,7 +696,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      */
     function leverage(
         address collateral,
-        uint256 amountDAIDesired,
+        uint256 amountUsdcDesired,
         address recipient,
         uint256 deadline,
         bytes calldata permitData
@@ -739,10 +708,10 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         address borrowable = ICygnusCollateral(collateral).borrowable();
 
         // Permit (if any)
-        borrowPermitInternal(borrowable, amountDAIDesired, deadline, permitData);
+        borrowPermitInternal(borrowable, amountUsdcDesired, deadline, permitData);
 
         // Pass LP Token, collateral, borrowable, amount, recipient
-        leverageInternal(lpTokenPair, collateral, borrowable, amountDAIDesired, recipient);
+        leverageInternal(lpTokenPair, collateral, borrowable, amountUsdcDesired, recipient);
     }
 
     /**
@@ -776,8 +745,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Token1 Address of the user's deposited LP Token
         address token1 = IDexPair(cygnusShuttle.lpTokenPair).token1();
 
-        // Converts the borrowed amount of DAI to tokenA and tokenB to mint the LP Token
-        (uint256 totalAmountA, uint256 totalAmountB) = convertDAIToTokens(
+        // Converts the borrowed amount of USDC to tokenA and tokenB to mint the LP Token
+        (uint256 totalAmountA, uint256 totalAmountB) = convertUsdcToTokens(
             cygnusShuttle.lpTokenPair,
             token0,
             token1,
@@ -905,32 +874,5 @@ contract CygnusAltairX is ICygnusAltairX, Context {
             token0,
             token1
         );
-    }
-
-    /**
-     *  @notice Replace the bonus adapter. Keep at maximum 4 as the first 3 cover most cases
-     */
-    function addAdapter(uint8 adapter) external override {
-        // Get admin from factory
-        address admin = ICygnusFactory(hangar18).admin();
-
-        /// @custom:error MsgSenderNotAdmin Avoid unless admin
-        if (_msgSender() != admin) {
-            revert CygnusAltair__MsgSenderNotAdmin({ sender: _msgSender(), admin: admin });
-        }
-
-        // Remove bonus and don't add new adapter
-        if (adapter == 0) {
-            // Remove bonus adapter
-            adapters.pop();
-        }
-        // Remove bonus and add new adapter
-        else {
-            // Remove bonus adapter
-            adapters.pop();
-
-            // Add new bonus adapter
-            adapters.push(adapter);
-        }
     }
 }

@@ -37,27 +37,26 @@ interface ICygnusCollateralModel is ICygnusCollateralVoid {
 
     /**
      *  @notice Calls the oracle to return the price of the underlying LP Token of this shuttle
-     *  @return lpTokenPrice The price of 1 LP Token in DAI
+     *  @return lpTokenPrice The price of 1 LP Token in USDC
      */
     function getLPTokenPrice() external view returns (uint256 lpTokenPrice);
 
     /**
-     *  @notice Whether or not an account can borrow
+     *  @notice Returns the debt ratio of a borrower, denoted by borrowed USDC / total collateral price in USDC
+     *  @param borrower The address of the borrower
+     *  @return borrowersDebtRatio The debt ratio of the borrower, with max being 1 mantissa
+     */
+    function getDebtRatio(address borrower) external returns (uint256 borrowersDebtRatio);
+
+    /**
      *  @param borrower The address of the borrower.
-     *  @param borrowableToken The address of the token the user wants to borrow.
+     *  @param borrowableToken The address of the borrowable contract user wants to borrow from
      *  @param accountBorrows The amount the user wants to borrow.
-     *  @return Whether the account can borrow.
+     *  @return Whether the account can borrow
      */
     function canBorrow_J2u(
         address borrower,
         address borrowableToken,
         uint256 accountBorrows
     ) external returns (bool);
-
-    /**
-     *  @notice Returns the debt ratio of a borrower, denoted by borrowed DAI / collateral price in DAI
-     *  @param borrower The address of the borrower
-     *  @return borrowersDebtRatio The debt ratio of the borrower, with max being 1 mantissa
-     */
-    function getDebtRatio(address borrower) external returns (uint256 borrowersDebtRatio);
 }

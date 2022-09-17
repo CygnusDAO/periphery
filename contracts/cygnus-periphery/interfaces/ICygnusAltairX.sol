@@ -76,19 +76,14 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function nativeToken() external view returns (address);
 
     /**
-     *  @return dai The address of DAI on this chain
+     *  @return usdc The address of USDC on this chain
      */
-    function dai() external view returns (address);
+    function usdc() external view returns (address);
 
     /**
      *  @return LOCAL_BYTES Empty bytes 0x
      */
     function LOCAL_BYTES() external view returns (bytes memory);
-
-    /**
-     *  @return USDC The address of USDC to return the best price between dai/avax or usdc/avax
-     */
-    function USDC() external pure returns (address);
 
     /**
      *  @return YAK_ROUTER The address of Yak's dex aggregator
@@ -100,14 +95,15 @@ interface ICygnusAltairX is ICygnusAltairCall {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Main function used in Cygnus to borrow DAI
-     *  @param amount Amount of DAI to borrow
+     *  @notice Main function used in Cygnus to borrow USDC
+     *  @param borrowable The address of the CygnusBorrow contract
+     *  @param amount Amount of USDC to borrow
      *  @param recipient The address of the borrower
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
      */
     function borrow(
-        address cygnusDai,
+        address borrowable,
         uint256 amount,
         address recipient,
         uint256 deadline,
@@ -116,12 +112,13 @@ interface ICygnusAltairX is ICygnusAltairCall {
 
     /**
      *  @notice Main function used in Cygnus to repay borrows
+     *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The max amount to repay
      *  @param borrower Thea ddress of the borrower
      *  @param deadline The time by which the transaction must be included to effect the change
      */
     function repay(
-        address cygnusDai,
+        address borrowable,
         uint256 amountMax,
         address borrower,
         uint256 deadline
@@ -129,14 +126,14 @@ interface ICygnusAltairX is ICygnusAltairCall {
 
     /**
      *  @notice Main function used in Cygnus to liquidate borrows
-     *  @param cygnusDai The address of Cygnus albireo
+     *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The maximum amount to liquidate
      *  @param borrower The address of the borrower
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      */
     function liquidate(
-        address cygnusDai,
+        address borrowable,
         uint256 amountMax,
         address borrower,
         address recipient,
@@ -144,20 +141,20 @@ interface ICygnusAltairX is ICygnusAltairCall {
     ) external returns (uint256 amount, uint256 seizeTokens);
 
     /**
-     *  @notice Function to liquidate a borrower and immediately convert holdings to DAI
-     *  @param cygnusDai The address of Cygnus albireo
+     *  @notice Function to liquidate a borrower and immediately convert holdings to USDC
+     *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The amount to liquidate
      *  @param borrower The address of the borrower
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      */
-    function liquidateToDai(
-        address cygnusDai,
+    function liquidateToUsdc(
+        address borrowable,
         uint256 amountMax,
         address borrower,
         address recipient,
         uint256 deadline
-    ) external returns (uint256 amountDai);
+    ) external returns (uint256 amountUsdc);
 
     /**
      *  @notice Main leverage function
@@ -218,10 +215,4 @@ interface ICygnusAltairX is ICygnusAltairCall {
         address token1,
         bytes calldata data
     ) external override(ICygnusAltairCall);
-
-    /**
-     *  @notice Add adapter to optimize leverage and deleverage
-     *  @param adapter The uint8 identifier for the adapter we are adding
-     */
-    function addAdapter(uint8 adapter) external;
 }

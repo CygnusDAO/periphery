@@ -23,9 +23,9 @@ interface ICygnusCollateral is ICygnusCollateralModel {
     error CygnusCollateral__CantLiquidateSelf(address borrower, address liquidator);
 
     /**
-     *  @custom:error MsgSenderNotCygnusDai Emitted for liquidation when msg.sender is not borrowable.
+     *  @custom:error MsgSenderNotBorrowable Emitted for liquidation when msg.sender is not borrowable.
      */
-    error CygnusCollateral__MsgSenderNotCygnusDai(address sender, address borrowable);
+    error CygnusCollateral__MsgSenderNotBorrowable(address sender, address borrowable);
 
     /**
      *  @custom:error CantLiquidateZero Emitted when the repayAmount is 0
@@ -53,44 +53,22 @@ interface ICygnusCollateral is ICygnusCollateralModel {
     error CygnusCollateral__InsufficientRedeemAmount(uint256 cygLPTokens, uint256 redeemableAmount);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            2. CUSTOM EVENTS
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @param sender is address of msg.sender
-     *  @param redeemer is address of redeemer
-     *  @param redeemAmount is redeemed ammount
-     *  @param redeemTokens is the balance of
-     *  @custom:event Emitted when collateral is safely redeemed
-     */
-    event RedeemCollateral(address sender, address redeemer, uint256 redeemAmount, uint256 redeemTokens);
-
-    /**
-     *  @param borrower The address of redeemer
-     *  @param liquidator The address of the liquidator
-     *  @param cygLPAmount The amount being seized is the balance of
-     *  @param cygnusFee The protocol fee (if any)
-     *  @custom:event Emitted when collateral is seized
-     */
-    event SeizeCollateral(address borrower, address liquidator, uint256 cygLPAmount, uint256 cygnusFee);
-
-    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
-     *  @param from The address of the borrower
-     *  @param value The amount to redeem
-     *  @return Whether the user `from` can redeem - if user has shortfall, debt must be repaid first
+     *  @param borrower The address of the borrower
+     *  @param redeemAmount The amount of CygLP to redeem
+     *  @return Whether the `borrower` account can redeem - if user has shortfall, returns false
      */
-    function canRedeem(address from, uint256 value) external returns (bool);
+    function canRedeem(address borrower, uint256 redeemAmount) external returns (bool);
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Updates balances of liquidator and borrower, should only be called by borrowable's liquidate function
+     *  @dev This should be called from `borrowable` contract
      *  @param liquidator The address repaying the borrow and seizing the collateral
      *  @param borrower The address of the borrower
      *  @param repayAmount The number of collateral tokens to seize

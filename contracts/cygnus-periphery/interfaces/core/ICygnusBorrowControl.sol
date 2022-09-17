@@ -28,11 +28,11 @@ interface ICygnusBorrowControl is ICygnusTerminal {
 
     /**
      *  @notice Logs when the borrow tracker is updated by admins
-     *  @param oldBorrowTracker The address of the borrow tracker up until this point used for CYG distribution
-     *  @param newBorrowTracker The address of the new borrow tracker
-     *  @custom:event NewCygnusBorrowTracker Emitted when a new borrow tracker is set set by admins
+     *  @param oldBorrowRewarder The address of the borrow rewarder up until this point used for CYG distribution
+     *  @param newBorrowRewarder The address of the new borrow rewarder
+     *  @custom:event NewCygnusBorrowRewarder Emitted when a new borrow tracker is set set by admins
      */
-    event NewCygnusBorrowTracker(address oldBorrowTracker, address newBorrowTracker);
+    event NewCygnusBorrowRewarder(address oldBorrowRewarder, address newBorrowRewarder);
 
     /**
      *  @notice Logs when the reserve factor is updated by admins
@@ -43,12 +43,19 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     event NewReserveFactor(uint256 oldReserveFactor, uint256 newReserveFactor);
 
     /**
-     *  @notice Logs when the kink utilization rate is updated by admins
-     *  @param oldKinkUtilizationRate The kink utilization rate used in this shuttle until this point
-     *  @param newKinkUtilizationRate The new kink utilization rate set
-     *  @custom:event NewKinkUtilizationRate Emitted when a new kink utilization rate is set set by admins
+     *  @notice Logs when a new interest rate model is set
+     *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
+     *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
+     *  @param kinkMultiplier_ The increase to farmApy once kink utilization is reached
+     *  @param kinkUtilizationRate_ The rate at which the jump interest rate takes effect
+     *  custom:event NewInterestRateParameters Emitted when a new interest rate is set
      */
-    event NewKinkUtilizationRate(uint256 oldKinkUtilizationRate, uint256 newKinkUtilizationRate);
+    event NewInterestRateParameters(
+        uint256 baseRatePerYear,
+        uint256 multiplierPerYear,
+        uint256 kinkMultiplier_,
+        uint256 kinkUtilizationRate_
+    );
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -64,9 +71,9 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     function collateral() external view returns (address);
 
     /**
-     *  @return cygnusBorrowTracker Address of the borrow tracker.
+     *  @return cygnusBorrowRewarder Address of the contract that rewards borrowers in CYG (or other)
      */
-    function cygnusBorrowTracker() external view returns (address);
+    function cygnusBorrowRewarder() external view returns (address);
 
     // ───────────────────────────── Current pool rates
 
@@ -76,46 +83,34 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     function exchangeRateStored() external view returns (uint256);
 
     /**
-     *  @return kinkUtilizationRate Current utilization point at which the jump multiplier is applied
-     */
-    function kinkUtilizationRate() external view returns (uint256);
-
-    /**
      *  @return reserveFactor Percentage of interest that is routed to this market's Reserve Pool
      */
     function reserveFactor() external view returns (uint256);
 
     /**
+     *  @return baseRatePerSecond The interest rate for this pool when utilization is 0 divided by seconds in a year
+     */
+    function baseRatePerSecond() external view returns (uint256);
+
+    /**
+     *  @return baseRatePerSecond The mulitplier for this pool divided by seconds in a year
+     */
+    function multiplierPerSecond() external view returns (uint256);
+
+    /**
+     *  @return jumpMultiplierPerSecond The Jump multiplier for this pool divided by seconds in a year
+     */
+    function jumpMultiplierPerSecond() external view returns (uint256);
+
+    /**
+     *  @return kinkUtilizationRate Current utilization point at which the jump multiplier is applied
+     */
+    function kinkUtilizationRate() external view returns (uint256);
+
+    /**
      *  @return kinkMultiplier The multiplier that is applied to the interest rate once util > kink
      */
     function kinkMultiplier() external view returns (uint256);
-
-    // ─────────────────────── Min/Max this pool allows
-
-    /**
-     *  @return BASE_RATE_MAX Maximum base interest rate allowed (20%)
-     */
-    function BASE_RATE_MAX() external pure returns (uint256);
-
-    /**
-     *  @return KINK_UTILIZATION_RATE_MIN Minimum kink utilization point allowed, equivalent to 50%
-     */
-    function KINK_UTILIZATION_RATE_MIN() external pure returns (uint256);
-
-    /**
-     *  @return KINK_UTILIZATION_RATE_MAX Maximum Kink point allowed
-     */
-    function KINK_UTILIZATION_RATE_MAX() external pure returns (uint256);
-
-    /**
-     *  @return RESERVE_FACTOR_MAX The maximum reserve factor allowed
-     */
-    function RESERVE_FACTOR_MAX() external pure returns (uint256);
-
-    /**
-     *  @return KINK_MULTIPLIER_MAX The maximum kink multiplier than can be applied to this shuttle
-     */
-    function KINK_MULTIPLIER_MAX() external pure returns (uint256);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -125,11 +120,11 @@ interface ICygnusBorrowControl is ICygnusTerminal {
 
     /**
      *  @notice 👽
-     *  @notice Updates the borrow tracker contract
-     *  @param newBorrowTracker The address of the new Borrow tracker
+     *  @notice Updates the borrow rewarder contract
+     *  @param newBorrowRewarder The address of the new Borrow rewarder
      *  @custom:security non-reentrant
      */
-    function setCygnusBorrowTracker(address newBorrowTracker) external;
+    function setCygnusBorrowRewarder(address newBorrowRewarder) external;
 
     /**
      *  @notice 👽
@@ -140,11 +135,16 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     function setReserveFactor(uint256 newReserveFactor) external;
 
     /**
-     *  @notice 👽
-     *  @notice Updates the kink utilization rate for this shuttle. To update the interest rate model this must be
-     *          updated first
-     *  @param newKinkUtilizationRate The new utilization rate at which the jump kultiplier takes effect
-     *  @custom:security non-reentrant
+     *  @notice Internal function to update the parameters of the interest rate model
+     *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
+     *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
+     *  @param kinkMultiplier_ The increase to farmApy once kink utilization is reached
+     *  @param kinkUtilizationRate_ The new utilization rate
      */
-    function setKinkUtilizationRate(uint256 newKinkUtilizationRate) external;
+    function setInterestRateModel(
+        uint256 baseRatePerYear,
+        uint256 multiplierPerYear,
+        uint256 kinkMultiplier_,
+        uint256 kinkUtilizationRate_
+    ) external;
 }

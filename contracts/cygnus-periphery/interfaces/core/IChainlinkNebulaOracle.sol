@@ -139,9 +139,9 @@ interface IChainlinkNebulaOracle {
     function symbol() external view returns (string memory);
 
     /**
-     *  @return The address of Chainlink's DAI oracle
+     *  @return The address of Chainlink's USDC oracle
      */
-    function dai() external view returns (AggregatorV3Interface);
+    function usdc() external view returns (AggregatorV3Interface);
 
     /**
      *  @return The address of the Cygnus admin
@@ -166,26 +166,26 @@ interface IChainlinkNebulaOracle {
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @return The price of DAI with 18 decimals
+     *  @return The price of USDC with 18 decimals
      */
-    function daiPrice() external view returns (uint256);
+    function usdcPrice() external view returns (uint256);
 
     /**
-     *  @notice Gets the latest price of the LP Token denominated in DAI
+     *  @notice Gets the latest price of the LP Token denominated in USDC
      *  @notice LP Token pair must be initialized, else reverts with custom error
      *  @param lpTokenPair The address of the LP Token
-     *  @return lpTokenPrice The price of the LP Token denominated in DAI
+     *  @return lpTokenPrice The price of the LP Token denominated in USDC
      */
-    function lpTokenPriceDai(address lpTokenPair) external view returns (uint256 lpTokenPrice);
+    function lpTokenPriceUsdc(address lpTokenPair) external view returns (uint256 lpTokenPrice);
 
     /**
-     *  @notice Gets the latest price of the LP Token's token0 and token1 denominated in DAI
+     *  @notice Gets the latest price of the LP Token's token0 and token1 denominated in USDC
      *  @notice Used by Cygnus Altair contract to calculate optimal amount of leverage
      *  @param lpTokenPair The address of the LP Token
-     *  @return tokenPriceA The price of the LP Token's token0 denominated in DAI
-     *  @return tokenPriceB The price of the LP Token's token1 denominated in DAI
+     *  @return tokenPriceA The price of the LP Token's token0 denominated in USDC
+     *  @return tokenPriceB The price of the LP Token's token1 denominated in USDC
      */
-    function assetPricesDai(address lpTokenPair) external view returns (uint256 tokenPriceA, uint256 tokenPriceB);
+    function assetPricesUsdc(address lpTokenPair) external view returns (uint256 tokenPriceA, uint256 tokenPriceB);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS

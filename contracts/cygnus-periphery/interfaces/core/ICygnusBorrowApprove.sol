@@ -106,8 +106,8 @@ interface ICygnusBorrowApprove is ICygnusBorrowControl {
 
     /**
      *  @param spender The user allowed to spend the tokens
-     *  @param value The amount of tokens approved to spend
+     *  @param amount The amount of tokens approved to spend
      *  @return Whether or not the borrow was approved
      */
-    function borrowApprove(address spender, uint256 value) external returns (bool);
+    function borrowApprove(address spender, uint256 amount) external returns (bool);
 }

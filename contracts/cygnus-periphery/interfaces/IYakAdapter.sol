@@ -69,6 +69,6 @@ interface IYakAdapter {
         uint256 _amountIn,
         address _tokenIn,
         address _tokenOut,
-        uint8[] calldata _options
+        uint8[] calldata options
     ) external view returns (Query memory);
 }
