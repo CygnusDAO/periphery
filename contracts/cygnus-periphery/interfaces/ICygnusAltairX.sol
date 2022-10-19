@@ -6,7 +6,6 @@ import "./ICygnusAltairCall.sol";
 
 // Interfaces
 import { IYakAdapter } from "./IYakAdapter.sol";
-import { IDexRouter02 } from "./core/IDexRouter.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
@@ -39,7 +38,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
     /**
      *  @custom:error MsgSenderNotRouter Emitted when the msg sender is not the router in the leverage function
      */
-    error CygnusAltair__MsgSenderNotRouter(address sender, address origin, address borrower);
+    error CygnusAltair__MsgSenderNotRouter(address sender, address origin);
 
     /**
      *  @custom:error MsgSenderNotBorrowable Emitted when the msg sender is not the borrow contract
@@ -158,15 +157,19 @@ interface ICygnusAltairX is ICygnusAltairCall {
 
     /**
      *  @notice Main leverage function
-     *  @param collateral The address of the Cygnus collateral
-     *  @param amount The amount to leverage
+     *  @param collateral The address of the collateral of the lending pool
+     *  @param borrowable The address of the borrowable of the lending pool
+     *  @param amountUsdcDesired The amount to leverage
+     *  @param amountLPMin The minimum amount of LP Tokens to receive
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
      */
     function leverage(
         address collateral,
-        uint256 amount,
+        address borrowable,
+        uint256 amountUsdcDesired,
+        uint256 amountLPMin,
         address recipient,
         uint256 deadline,
         bytes calldata permitData
@@ -175,12 +178,14 @@ interface ICygnusAltairX is ICygnusAltairCall {
     /**
      *  @notice Main deleverage function
      *  @param collateral The address of the collateral of the lending pool
+     *  @param borrowable The address of the borrowable of the lending pool
      *  @param redeemTokens The amount to CygLP to deleverage
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
      */
     function deleverage(
         address collateral,
+        address borrowable,
         uint256 redeemTokens,
         uint256 deadline,
         bytes calldata permitData
@@ -190,13 +195,11 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @notice Function that is called by the CygnusBorrow contract and decodes data to carry out the leverage
      *  @notice Will only succeed if: Caller is borrow contract & Borrow contract was called by router
      *  @param sender Address of the contract that initialized the borrow transaction (address of the router)
-     *  @param borrower Address of the borrower that is leveraging
      *  @param borrowAmount The amount to leverage
      *  @param data The encoded byte data passed from the CygnusBorrow contract to the router
      */
     function altairBorrow_O9E(
         address sender,
-        address borrower,
         uint256 borrowAmount,
         bytes calldata data
     ) external override(ICygnusAltairCall);
