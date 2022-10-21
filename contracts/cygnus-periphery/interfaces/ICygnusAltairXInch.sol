@@ -7,11 +7,13 @@ import "./ICygnusAltairCall.sol";
 // Interfaces
 import { IYakRouter } from "./IYakRouter.sol";
 import { IDexRouter02 } from "./core/IDexRouter.sol";
+import { IERC20 } from "./core/IERC20.sol";
+import { IAggregationRouterV4 } from "./IAggregationRouterV4.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
  */
-interface ICygnusAltairX is ICygnusAltairCall {
+interface ICygnusAltairXInch is ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -56,6 +58,16 @@ interface ICygnusAltairX is ICygnusAltairCall {
      */
     error CygnusAltair__MsgSenderNotCollateral(address sender, address collateral);
 
+    /**
+     *  @custom:error MsgSenderNotAdmin Reverts when the msg sender is not the cygnus factory admin
+     */
+    error CygnusAltair__MsgSenderNotAdmin(address sender, address admin);
+
+    /**
+     *  @custom:error InsufficientLPTokenAmount Reverts when the swapped amount is less than the min requested
+     */
+    error CygnusAltair__InsufficientLPTokenAmount(uint256 lpAmountMin, uint256 liquidity);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -81,9 +93,9 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function LOCAL_BYTES() external view returns (bytes memory);
 
     /**
-     *  @return YAK_ROUTER The address of Yak's dex aggregator
+     *  @return AGGREGATORV4 Address of the 1Inch router on this chain
      */
-    function YAK_ROUTER() external pure returns (IYakRouter);
+    function AGGREGATORV4() external pure returns (IAggregationRouterV4);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -102,7 +114,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 amount,
         address recipient,
         uint256 deadline,
-        bytes memory permitData
+        bytes calldata permitData
     ) external;
 
     /**
@@ -142,14 +154,15 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param borrower The address of the borrower
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
-     */
     function liquidateToUsdc(
         address borrowable,
         uint256 amountMax,
         address borrower,
         address recipient,
-        uint256 deadline
+        uint256 deadline,
+        bytes[] calldata swapData
     ) external returns (uint256 amountUsdc);
+     */
 
     /**
      *  @notice Main leverage function
@@ -168,7 +181,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 amountLPMin,
         address recipient,
         uint256 deadline,
-        bytes calldata permitData
+        bytes calldata permitData,
+        bytes[] calldata swapData
     ) external;
 
     /**
@@ -184,7 +198,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
         address borrowable,
         uint256 redeemTokens,
         uint256 deadline,
-        bytes calldata permitData
+        bytes calldata permitData,
+        bytes[] calldata swapData
     ) external;
 
     /**

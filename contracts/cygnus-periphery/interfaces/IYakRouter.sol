@@ -2,7 +2,7 @@
 pragma solidity >=0.8.4;
 
 // Interface to interact with YAK adapters
-interface IYakAdapter {
+interface IYakRouter {
     /**
      *  @notice Queries amount out given an amount to swap, the token we are swapping and receiving
      *  @param _amountIn The amount of _tokenIn we want to swap

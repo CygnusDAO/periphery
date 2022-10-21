@@ -51,4 +51,6 @@ interface IDexPair {
     function burn(address to) external returns (uint256 amount0, uint256 amount1);
 
     function mint(address to) external returns (uint256 liquidity);
+
+    function getUnderlyingBalances() external view returns (uint256 amount0Current, uint256 amount1Current);
 }

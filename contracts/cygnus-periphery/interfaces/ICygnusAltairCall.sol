@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Unlicensed
 pragma solidity >=0.8.4;
 
-/**
- *  @notice Interface used by Core contracts
- */
 interface ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
