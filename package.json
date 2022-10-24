@@ -1,7 +1,7 @@
 {
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.6",
-    "@nomiclabs/hardhat-etherscan": "^3.0.4",
+    "@nomiclabs/hardhat-etherscan": "^3.1.1",
     "@nomiclabs/hardhat-solhint": "^2.0.1",
     "@nomiclabs/hardhat-truffle5": "^2.0.6",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
@@ -29,7 +29,7 @@
     "ethereumjs-utils": "^5.2.5",
     "ethereumjs-wallet": "^1.0.2",
     "ethers": "^5.6.8",
-    "hardhat": "^2.9.7",
+    "hardhat": "^2.12.0",
     "hardhat-contract-sizer": "^2.5.1",
     "hardhat-gas-reporter": "^1.0.8",
     "prettier": "^2.6.2",
