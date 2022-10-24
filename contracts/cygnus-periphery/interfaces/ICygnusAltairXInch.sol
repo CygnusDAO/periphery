@@ -73,29 +73,30 @@ interface ICygnusAltairXInch is ICygnusAltairCall {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @return hangar18 The address of the Cygnus factory contract V1
-     */
-    function hangar18() external view returns (address);
-
-    /**
-     *  @return nativeToken The address of wrapped Avax
-     */
-    function nativeToken() external view returns (address);
-
-    /**
      *  @return usdc The address of USDC on this chain
      */
     function usdc() external view returns (address);
 
     /**
-     *  @return LOCAL_BYTES Empty bytes 0x
+     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USDC address
+     *                   on this chain
      */
-    function LOCAL_BYTES() external view returns (bytes memory);
+    function hangar18() external view returns (address);
 
     /**
-     *  @return AGGREGATORV4 Address of the 1Inch router on this chain
+     *  @return nativeToken The address of the native token on this chain (ie. WETH)
      */
-    function AGGREGATORV4() external pure returns (IAggregationRouterV4);
+    function nativeToken() external view returns (address);
+
+    /**
+     *  @return aggregationRouterV4 Address of the 1Inch router on this chain
+     */
+    function aggregationRouterV4() external view returns (IAggregationRouterV4);
+
+    /**
+     *  @return LOCAL_BYTES Empty bytes for internal calls
+     */
+    function LOCAL_BYTES() external view returns (bytes memory);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -149,20 +150,24 @@ interface ICygnusAltairXInch is ICygnusAltairCall {
 
     /**
      *  @notice Function to liquidate a borrower and immediately convert holdings to USDC
+     *  @param lpTokenPair The address of the LP Token that represents the CygLP we are seizing
+     *  @param collateral The address of the CygnusCollateral contract
      *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The amount to liquidate
      *  @param borrower The address of the borrower
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
+     */
     function liquidateToUsdc(
+        address lpTokenPair,
         address borrowable,
+        address collateral,
         uint256 amountMax,
         address borrower,
         address recipient,
         uint256 deadline,
         bytes[] calldata swapData
     ) external returns (uint256 amountUsdc);
-     */
 
     /**
      *  @notice Main leverage function
@@ -173,6 +178,7 @@ interface ICygnusAltairXInch is ICygnusAltairCall {
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
+     *  @param swapData the 1inch swap data to convert USDC to liquidity
      */
     function leverage(
         address collateral,
@@ -192,6 +198,7 @@ interface ICygnusAltairXInch is ICygnusAltairCall {
      *  @param redeemTokens The amount to CygLP to deleverage
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
+     *  @param swapData the 1inch swap data to convert liquidity to USDC
      */
     function deleverage(
         address collateral,
@@ -220,6 +227,8 @@ interface ICygnusAltairXInch is ICygnusAltairCall {
      *  @notice Will only succeed if: Caller is collateral contract & collateral contract was called by router
      *  @param sender Address of the contract that initialized the redeem transaction (address of the router)
      *  @param redeemAmount The amount to deleverage
+     *  @param token0 The address of the collateral`s underlying token0
+     *  @param token1 The address of the collateral`s underlying token1
      *  @param data The encoded byte data passed from the CygnusCollateral contract to the router
      */
     function altairRedeem_u91A(

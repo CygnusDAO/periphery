@@ -84,14 +84,6 @@ module.exports = {
                 enabled: true,
             },
         },
-
-        ropsten: {
-            url: `https://ropsten.infura.io/v3/${process.env.API_KEY}`,
-            forking: {
-                url: `https://ropsten.infura.io/v3/${process.env.API_KEY}`,
-                enabled: true,
-            },
-        },
     },
     paths: {
         artifacts: './artifacts',

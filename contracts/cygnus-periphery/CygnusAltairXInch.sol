@@ -2,8 +2,8 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { Context } from "./utils/Context.sol";
 import { ICygnusAltairXInch } from "./interfaces/ICygnusAltairXInch.sol";
+import { Context } from "./utils/Context.sol";
 
 // Interfaces
 import { IERC20 } from "./interfaces/core/IERC20.sol";
@@ -17,9 +17,9 @@ import { ICygnusCollateral } from "./interfaces/core/ICygnusCollateral.sol";
 import { IAggregationRouterV4, IAggregationExecutor } from "./interfaces/IAggregationRouterV4.sol";
 
 // Libraries
+import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 import { CygnusPoolAddress } from "./libraries/CygnusPoolAddress.sol";
-import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
 
 /**
  *  @title  CygnusAltairX Periphery contract to interact with Cygnus Core contracts
@@ -27,8 +27,8 @@ import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
  *  @notice The router contract is used to interact with Cygnus core contracts
  *
  *          This router is integrated with 1inch's AggregationRouterV4 across all chains, and it works mostly
- *          on-chain. The queries are estimated before the first call following the same logic for swaps as this
- *          contract, and then each proceeding call builds on top of the next one, keeping the data passed to the
+ *          on-chain. The queries are estimated before the first call, following the same logic for swaps as this
+ *          contract and then each proceeding call builds on top of the next one, keeping the data passed to the
  *          executioner contract intact at each stage, but we update the `amount` passed during each call to the
  *          current token balance of this addres (could differ slightly).
  *
@@ -39,7 +39,7 @@ import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
  *          passed from each step and override the `amount` with the current balance of this contract (both amounts
  *          should be the same, or in some cases could be off by a very small amount).
  *
- *          The max amount of swaps that we can performed during a leverage or de-leverage is 3, thus the data passed
+ *          The max amount of swaps that we can perform during a leverage or de-leverage is 3, thus the data passed
  *          will always be a at least a 3-length byte array. In case a swap is not neeeded, we pass a 0 value in its
  *          place as to keep the length fixed.
  *
@@ -78,8 +78,10 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
      *  @custom:struct CygnusShuttle Encoded bytes passed to Cygnus Borrow contract for leverage
      *  @custom:member lpTokenPair The address of the LP Token
      *  @custom:member collateral The address of the Cygnus collateral contract
-     *  @custom:member borrow The address of the Cygnus borrow contract
-     *  @custom:member recipient The address of the recipient
+     *  @custom:member borrowable The address of the Cygnus borrow contract
+     *  @custom:member recipient The address of the user leveraging LP Tokens
+     *  @custom:member lpAmountMin The minimum amount of LP Tokens to receive
+     *  @cusotm:member swapData The 1inch swap data byte array to convert USDC to LP Tokens
      */
     struct CygnusShuttle {
         address lpTokenPair;
@@ -91,12 +93,13 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     }
 
     /**
-     *  @custom:struct RedeemLeverageCallData Encoded bytes passed to Cygnus Collateral contract for leverage redeem
+     *  @custom:struct RedeemLeverageCallData Encoded bytes passed to Cygnus Collateral contract for de-leverage
+     *  @custom:member lpTokenPair The address of the LP Token
      *  @custom:member collateral The address of the collateral contract
      *  @custom:member borrowable The address of the borrow contract
      *  @custom:member recipient The address of the user de-leveraging LP Tokens
      *  @custom:member redeemTokens The amount of CygLP to redeem
-     *  @custom:member redeemAmount The amount of LP to redeem
+     *  @cusotm:member swapData The 1inch swap data byte array to convert LP Tokens to USDC
      */
     struct RedeemLeverageCallData {
         address lpTokenPair;
@@ -112,6 +115,11 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     /**
      *  @inheritdoc ICygnusAltairXInch
      */
+    address public immutable override usdc;
+
+    /**
+     *  @inheritdoc ICygnusAltairXInch
+     */
     address public immutable override hangar18;
 
     /**
@@ -122,18 +130,12 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     /**
      *  @inheritdoc ICygnusAltairXInch
      */
-    address public immutable override usdc;
+    IAggregationRouterV4 public immutable override aggregationRouterV4;
 
     /**
      *  @inheritdoc ICygnusAltairXInch
      */
     bytes public constant override LOCAL_BYTES = new bytes(0);
-
-    /**
-     *  @inheritdoc ICygnusAltairXInch
-     */
-    IAggregationRouterV4 public constant override AGGREGATORV4 =
-        IAggregationRouterV4(0x1111111254fb6c44bAC0beD2854e76F90643097d);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTRUCTOR
@@ -142,17 +144,21 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     /**
      *  @notice Constructs the periphery contract. Factory must be deployed on the chain first to get the addresses
      *          of deployers and the wrapped native token (WAVAX, WETH, WFTM, etc.)
-     *  @param factory The address of the Factory contract
+     *  @param factory The address of the Cygnus Factory contract on this chain
+     *  @param oneInchRouterV4 The address of the 1inch Dex Aggregator Router V4 contract on this chain
      */
-    constructor(address factory) {
-        // Assign factory
+    constructor(address factory, address oneInchRouterV4) {
+        // Factory
         hangar18 = factory;
 
-        // Address of nativeToken in this chain
+        // Assign the native token set at the factory
         nativeToken = ICygnusFactory(factory).nativeToken();
 
-        // Address of USDC in this chain
+        // Assign the USDC address set at the factoryn
         usdc = ICygnusFactory(factory).usdc();
+
+        // Assign the dex aggregator on this chain
+        aggregationRouterV4 = IAggregationRouterV4(oneInchRouterV4);
     }
 
     /**
@@ -184,6 +190,13 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     /*  ───────────────────────────────────────────── Internal ────────────────────────────────────────────────  */
 
     /**
+     *  @notice The current block timestamp
+     */
+    function getBlockTimestamp() internal view returns (uint256) {
+        return block.timestamp;
+    }
+
+    /**
      *  @notice Reverts the transaction if the block.timestamp is after deadline
      *  @param deadline The time by which the transaction must be included to effect the change
      */
@@ -195,10 +208,12 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
     }
 
     /**
-     *  @notice The current block timestamp
+     *  @notice Checks the `token` balance of this contract
+     *  @param token The token to view balance of
+     *  @return This contract's balance
      */
-    function getBlockTimestamp() internal view returns (uint256) {
-        return block.timestamp;
+    function contractBalanceOf(address token) internal view returns (uint256) {
+        return IERC20(token).balanceOf(address(this));
     }
 
     /**
@@ -219,15 +234,6 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         uint256 c = PRBMath.sqrt(a * a + b);
         uint256 d = 2 * _dexSwapFee;
         return (c - a) / d;
-    }
-
-    /**
-     *  @notice Checks the `token` balance of this contract
-     *  @param token The token to view balance of
-     *  @return This contract's balance
-     */
-    function contractBalanceOf(address token) private view returns (uint256) {
-        return IERC20(token).balanceOf(address(this));
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -357,10 +363,12 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address token,
         address router,
         uint256 amount
-    ) internal {
+    ) internal virtual {
+        // If allowance is already higher than `amount` return
         if (IERC20(token).allowance(address(this), router) >= amount) {
             return;
         } else {
+            // Approve contract
             token.safeApprove(router, type(uint256).max);
         }
     }
@@ -373,21 +381,25 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
      *  @param swapData The data from 1inch `swap` query
      *  @param updatedAmount We update the swap amount with the current balanceOf this contract source token
      */
-    function swapTokensPrivate(bytes memory swapData, uint256 updatedAmount) private {
-        // Swap Data from API Call. Get aggregation executor, swap params and the encoded calls for the executor
+    function swapTokens(bytes memory swapData, uint256 updatedAmount) internal virtual {
+        // Swap Data from API Call.
+        // Get aggregation executor, swap params and the encoded calls for the executor
         (address caller, IAggregationRouterV4.SwapDescription memory desc, bytes memory data) = abi.decode(
             swapData,
             (address, IAggregationRouterV4.SwapDescription, bytes)
         );
 
-        // Override 1inch amount data of srcToken to reflect the current real balance in case we're off by mini tokens
-        desc.amount = updatedAmount;
+        // Update amount out to current balance of src token (in case of small difference)
+        if (desc.amount != updatedAmount) {
+            desc.amount = updatedAmount;
+        }
 
         // Approve 1Inch Router in `srcToken` if necessary
-        approveContract(address(desc.srcToken), address(AGGREGATORV4), desc.amount);
+        approveContract(address(desc.srcToken), address(aggregationRouterV4), desc.amount);
 
-        // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check set by slippage
-        AGGREGATORV4.swap(IAggregationExecutor(caller), desc, data);
+        // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
+        // of the leverage/deleverage functions anyways
+        aggregationRouterV4.swap(IAggregationExecutor(caller), desc, data);
     }
 
     /**
@@ -402,7 +414,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address token1,
         uint256 amountUsdc,
         bytes[] memory swapData
-    ) internal returns (uint256 totalAmountA, uint256 totalAmountB) {
+    ) internal virtual returns (uint256 totalAmountA, uint256 totalAmountB) {
         // Placeholder tokenA
         address tokenA;
 
@@ -415,19 +427,17 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
             // If token0 is USDC, then assign tokenA to token0, else tokenA to token1
             (tokenA, tokenB) = token0 == usdc ? (token0, token1) : (token1, token0);
         } else {
-            // swap USDc to native token, passing the total amount of USDC we borrowed
-            swapTokensPrivate(swapData[0], amountUsdc);
-
             // ─────────────────── 2. Check if token0 or token1 is already AVAX
             // Check If avax
             if (token0 == nativeToken || token1 == nativeToken) {
+                // swap USDc to native token, passing the total amount of USDC we borrowed
+                swapTokens(swapData[0], amountUsdc);
+
                 // If token0 is nativeToken, then assign tokenA to token0, else tokenA to token1
                 (tokenA, tokenB) = token0 == nativeToken ? (token0, token1) : (token1, token0);
             } else {
-                // None are USDC or native token, swap all native token to token0 to calculate optimal deposit.
-                // Pass the balance we have of nativeToken to override 1inch `amount` data to account for
-                // small differences and avoid slippage
-                swapTokensPrivate(swapData[1], contractBalanceOf(nativeToken));
+                // None are USDC or native token, swap all USDC to this LP Token's token0
+                swapTokens(swapData[0], amountUsdc);
 
                 // Assign tokenA to token0 and tokenB to token1
                 (tokenA, tokenB) = (token0, token1);
@@ -441,17 +451,17 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         uint256 reservesA = tokenA == token0 ? reserves0 : reserves1;
 
         // Get optimal swap amount for token A - 997/1000 is the swap fee of TraderJoe
-        uint256 swapAmount = optimalDepositA(contractBalanceOf(tokenA), reservesA, 997);
+        uint256 optimalTokenA = optimalDepositA(contractBalanceOf(tokenA), reservesA, 997);
 
         // Swap tokenA to tokenB, passing the optimal swap amount to override 1inch `amount` data to account for small
         // differences and avoid slippage
-        swapTokensPrivate(swapData[2], swapAmount);
+        swapTokens(swapData[1], optimalTokenA);
 
-        // ─────────────────────── 4. Send token0 and token1 to lp token pair to call `mint` on next function
-        // Total Amount A
+        // ─────────────────────── 4. Return current balance of token0 and token1
+        // Current token0 balance of this contract
         totalAmountA = contractBalanceOf(token0);
 
-        // Total Amount B
+        // Current token0 balance of this contract
         totalAmountB = contractBalanceOf(token1);
     }
 
@@ -469,45 +479,81 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address token0,
         address token1,
         bytes[] memory swapData
-    ) internal returns (uint256 amountUsdc) {
+    ) internal virtual returns (uint256 amountUsdc) {
         // ─────────────────────── 1. Check if token0 or token1 is already USDC
-        // If token0 or token1 is USDC then swap opposite and return
+        // If token0 or token1 is USDC then swap opposite
         if (token0 == usdc || token1 == usdc) {
             // Convert the other token to USDC and return
-            token0 == usdc
-                ? swapTokensPrivate(swapData[0], amountTokenB)
-                : swapTokensPrivate(swapData[0], amountTokenA);
+            token0 == usdc ? swapTokens(swapData[0], amountTokenB) : swapTokens(swapData[0], amountTokenA);
 
-            // Explicit return as we now only have USDC
+            // Explicity return
             return contractBalanceOf(usdc);
         }
-        // Check for native token, if none are native then we convert all to native due to highest liquidity
+        // Not USDC, check for nativeToken
         else {
-            // ─────────────────── 2. Not USDC, check for nativeToken
-            // If native token then conver the other token to native
+            // ─────────────────── 2. Not USDC, check for native Token
             if (token0 == nativeToken || token1 == nativeToken) {
                 // Convert token0 or token1 to nativeToken
-                token0 == nativeToken
-                    ? swapTokensPrivate(swapData[0], amountTokenB)
-                    : swapTokensPrivate(swapData[0], amountTokenA);
+                token0 == nativeToken ? swapTokens(swapData[0], amountTokenB) : swapTokens(swapData[0], amountTokenA);
             }
             // None are USDC or nativeToken, convert all to nativeToken
             else {
-                // Swap token0 to nativeToken
-                swapTokensPrivate(swapData[1], amountTokenA);
+                // ─────────────────── 3. Not USDC or native token, swap both to native for better liquidity
+                // Swap token0 to USDC
+                swapTokens(swapData[0], amountTokenA);
 
-                // Swap token 1 to nativeToken
-                swapTokensPrivate(swapData[2], amountTokenB);
+                // Swap token 1 to USDC
+                swapTokens(swapData[1], amountTokenB);
             }
         }
-        // ─────────────────────── 3. Swap all nativeTokens to USDC
-        // Convert nativeToken to USDC and return
-        // Pass the balance we have of nativeToken to override 1inch `amount` data
-        swapTokensPrivate(swapData[3], contractBalanceOf(nativeToken));
+        // ─────────────────────── 4. Return current balance of USC
+        // Swap all Native token to USDC
+        swapTokens(swapData[2], contractBalanceOf(nativeToken));
 
-        // Current USDC balance of this contract
+        // USDC balance
         amountUsdc = contractBalanceOf(usdc);
     }
+
+    // Liquidate to USDC
+
+    /**
+     *  @notice Liquidates borrower internally and converts LP Tokens to receive back USDC
+     *  @param lpTokenPair The address of the LP Token
+     *  @param collateral The address of the Cygnus Collateral
+     *  @param recipient The address of the recipient of USDC
+     *  @param seizeTokens The amount of CygLP seized
+     *  @param swapData The 1inch calldata to swap LP back to USDC
+     */
+    function liquidateToUsdcInternal(
+        address lpTokenPair,
+        address collateral,
+        address recipient,
+        uint256 seizeTokens,
+        bytes[] calldata swapData
+    ) internal virtual returns (uint256 amountUsdc) {
+        // Redeem CygLP for LP Token
+        uint256 redeemAmount = ICygnusCollateral(collateral).redeem(seizeTokens, recipient, recipient);
+
+        // Get token0
+        address token0 = IDexPair(lpTokenPair).token0();
+
+        // Get token1
+        address token1 = IDexPair(lpTokenPair).token1();
+
+        // Remove `redeemAmount` of liquidity from the LP Token pair
+        IDexPair(lpTokenPair).transferFrom(recipient, lpTokenPair, redeemAmount);
+
+        // Burn LP Token and return amountA and amountB
+        (uint256 amountAMax, uint256 amountBMax) = IDexPair(lpTokenPair).burn(address(this));
+
+        // Convert amountA and amountB to USDC
+        amountUsdc = convertLiquidityToUsdc(amountAMax, amountBMax, token0, token1, swapData);
+
+        // Transfer USDC to liquidator
+        IERC20(usdc).transfer(recipient, amountUsdc);
+    }
+
+    // Burn LP Token and receive token0 and token1
 
     /**
      *  @notice Removes liquidity from the Dex by calling the pair's `burn` function, receiving tokenA and tokenB
@@ -531,7 +577,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address token0,
         address token1,
         bytes[] memory swapData
-    ) internal {
+    ) internal virtual {
         // Transfer LP Token back to LP Token's contract to remove liquidity
         IDexPair(lpTokenPair).transfer(lpTokenPair, redeemAmount);
 
@@ -556,6 +602,8 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
     }
+
+    // Leverage
 
     /**
      *  @notice Leverage internal function and calls borrow contract
@@ -590,6 +638,8 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         // Call borrow with encoded data
         ICygnusBorrow(borrowable).borrow(recipient, address(this), usdcAmount, cygnusShuttle);
     }
+
+    // Deleverage
 
     /**
      * @notice Main deleverage function
@@ -692,7 +742,10 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
 
     /**
      *  @inheritdoc ICygnusAltairXInch
+     */
     function liquidateToUsdc(
+        address lpTokenPair,
+        address collateral,
         address borrowable,
         uint256 amountMax,
         address borrower,
@@ -700,43 +753,18 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         uint256 deadline,
         bytes[] calldata swapData
     ) external virtual override checkDeadline(deadline) returns (uint256 amountUsdc) {
-            // Amount to repay
-            uint256 amount = repayAmountInternal(borrowable, amountMax, borrower);
+        // Amount to repay
+        uint256 amount = repayAmountInternal(borrowable, amountMax, borrower);
 
-            // Transfer USDC
-            ICygnusBorrow(borrowable).underlying().safeTransferFrom(_msgSender(), borrowable, amount);
+        // Transfer USDC
+        ICygnusBorrow(borrowable).underlying().safeTransferFrom(_msgSender(), borrowable, amount);
 
         // Liquidate and increase liquidator's CygLP amount
         uint256 seizeTokens = ICygnusBorrow(borrowable).liquidate(borrower, recipient);
 
-        // Get Collateral
-        address collateral = ICygnusBorrow(borrowable).collateral();
-
-        // Redeem CygLP for LP Token
-        uint256 redeemAmount = ICygnusCollateral(collateral).redeem(seizeTokens, recipient, recipient);
-
-        // Get LP Token pair
-        address lpTokenPair = ICygnusCollateral(collateral).underlying();
-
-        // Get token0
-        address token0 = IDexPair(lpTokenPair).token0();
-
-        // Get token1
-        address token1 = IDexPair(lpTokenPair).token1();
-
-        // Remove `redeemAmount` of liquidity from the LP Token pair
-        IDexPair(lpTokenPair).transferFrom(recipient, lpTokenPair, redeemAmount);
-
-        // Burn LP Token and return amountA and amountB
-        (uint256 amountAMax, uint256 amountBMax) = IDexPair(lpTokenPair).burn(address(this));
-
-        // Convert amountA and amountB to USDC
-        amountUsdc = convertLiquidityToUsdc(amountAMax, amountBMax, token0, token1, swapData);
-
-        // Transfer USDC to liquidator
-        IERC20(usdc).transfer(recipient, amountUsdc);
+        // Liquidate internally to avoid stack too deep
+        amountUsdc = liquidateToUsdcInternal(lpTokenPair, collateral, recipient, seizeTokens, swapData);
     }
-     */
 
     //  LEVERAGE ─────────────────────────────────────
 
@@ -770,7 +798,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address sender,
         uint256 borrowAmount,
         bytes calldata data
-    ) external override {
+    ) external virtual override {
         borrowAmount;
 
         // Decode data passed from borrow contract
@@ -834,7 +862,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         uint256 deadline,
         bytes calldata permitData,
         bytes[] calldata swapData
-    ) external override checkDeadline(deadline) {
+    ) external virtual override checkDeadline(deadline) {
         /// @custom:error InvalidRedeemAmount Avoid redeeming 0 tokens
         if (redeemTokens <= 0) {
             revert CygnusAltair__InvalidRedeemAmount({ redeemer: _msgSender(), redeemTokens: redeemTokens });
@@ -859,7 +887,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
         address token0,
         address token1,
         bytes calldata data
-    ) external override {
+    ) external virtual override {
         // Decode deleverage shuttle data
         RedeemLeverageCallData memory redeemData = abi.decode(data, (RedeemLeverageCallData));
 
@@ -868,7 +896,7 @@ contract CygnusAltairXInch is ICygnusAltairXInch, Context {
             // solhint-disable-next-line
             revert CygnusAltair__MsgSenderNotRouter({ sender: sender, origin: tx.origin });
         }
-        /// @custom:error MsgSenderNotBorrowable Avoid if the msg sender is not the borrow contract
+        /// @custom:error MsgSenderNotCollateral Avoid if the msg sender is not Cygnus collateral contract
         else if (_msgSender() != redeemData.collateral) {
             revert CygnusAltair__MsgSenderNotCollateral({ sender: _msgSender(), collateral: redeemData.collateral });
         }
