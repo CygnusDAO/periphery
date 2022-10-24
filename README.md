@@ -4,13 +4,13 @@ This is the main periphery contract to interact with the Cygnus Core contracts.
 
  This router is integrated with <a href="https://docs.1inch.io/docs/aggregation-protocol/introduction">1inch's AggregationRouterV4</a> across all chains, and it works mostly
  on-chain. The queries are estimated before the first call off-chain, following the same logic for swaps as this
- contract. Each proceeding call builds on top of the previous one, so we can estimate what the optimal path would be for the swaps. The router then updates the amount of `srcToken` to reflect the current balance held by this contract, and follows the same path.
+ contract. Each proceeding call builds on top of the previous one, so we can estimate the amounts for the swaps using the returnAmount of each API call. At the time of the swap, the router updates the amount of srcToken to swap, in case it's off slightly but keeps the same executioner and executioner data intact.
  
  During the leverage functionality the router borrows USDC from the borrowable arm contract, and then
  converts it to LP Tokens. What this router does is account for every possible swap scenario between
  tokens, using a byte array populated with 1inch data. Before the leverage or de-leverage function call,
- we calculate quotes to estimate what the `amount` will be during each swap stage, and we use the data
- passed from each step and override the `amount` with the current balance of this contract (both amounts
+ we calculate quotes to estimate what the amount will be during each swap stage, and we use the data
+ passed from each step and override the amount with the current balance of this contract (both amounts
  should be the same, or in some cases could be off by a very small amount).
 
  <hr/>
