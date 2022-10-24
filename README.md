@@ -1,28 +1,68 @@
 # **Cygnus Periphery Contract**
 
-Allows users to interact with Cygnus Core contracts to:
+This is the main periphery contract to interact with the Cygnus Core contracts. 
 
--   Minting CygLP and CygUSD
--   Redeeming CygLP and CygUSD
--   Borrowing USDC
--   Repaying USDC
--   Liquidating user's with USDC (pay back USDC, receive CygLP + bonus liquidation reward)
--   Leveraging LP tokens
--   Deleveraging LP Tokens
+ This router is integrated with <a href="https://docs.1inch.io/docs/aggregation-protocol/introduction">1inch's AggregationRouterV4</a> across all chains, and it works mostly
+ on-chain. The queries are estimated before the first call off-chain, following the same logic for swaps as this
+ contract. Each proceeding call builds on top of the previous one, so we can estimate what the optimal path would be for the swaps. The router then updates the amount of `srcToken` to reflect the current balance held by this contract, and follows the same path.
+ 
+ During the leverage functionality the router borrows USDC from the borrowable arm contract, and then
+ converts it to LP Tokens. What this router does is account for every possible swap scenario between
+ tokens, using a byte array populated with 1inch data. Before the leverage or de-leverage function call,
+ we calculate quotes to estimate what the `amount` will be during each swap stage, and we use the data
+ passed from each step and override the `amount` with the current balance of this contract (both amounts
+ should be the same, or in some cases could be off by a very small amount).
 
  <hr/>
 
+**1Inch Integration**
+
+```solidity
+/**
+ *  @notice Creates the swap with 1Inch's AggregatorV4. We pass an extra param `updatedAmount` to eliminate
+ *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
+ *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
+ *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
+ *  @param swapData The data from 1inch `swap` query
+ *  @param updatedAmount We update the swap amount with the current balanceOf this contract source token
+ */
+function swapTokens(bytes memory swapData, uint256 updatedAmount) internal virtual {
+    // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
+    (address caller, IAggregationRouterV4.SwapDescription memory desc, bytes memory data) = abi.decode(
+        swapData,
+        (address, IAggregationRouterV4.SwapDescription, bytes)
+    );
+
+    // Update amountIn to current balance of src token (in case of small difference)
+    if (desc.amount != updatedAmount) desc.amount = updatedAmount;
+
+    // Approve 1Inch Router in `srcToken` if necessary
+    approveContract(address(desc.srcToken), address(aggregationRouterV4), desc.amount);
+
+    // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
+    // of the leverage/deleverage functions anyways
+    aggregationRouterV4.swap(IAggregationExecutor(caller), desc, data);
+}
+```
+
 **Leverage**
 
-```
+```solidity
 /**
+ *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsdc` of USDC
+ *  @param lpTokenPair The address of the LP Token
  *  @param token0 The address of token0 from the LP Token
  *  @param token1 The address of token1 from the LP Token
- *  @param amountUsdc USDC amount to convert to token0 and token1 of an LP Token
+ *  @param amountUsdc The amount of USDC to convert to liquidity
+ *  @param swapData The bytes array of 1inch optimal leverage swaps
  */
-function convertUsdcToTokens(address lpTokenPair, uint256 amountUsdc)
-   internal
-   returns (uint256 totalAmountA, uint256 totalAmountB);
+function convertUsdcToLiquidity(
+    address lpTokenPair,
+    address token0,
+    address token1,
+    uint256 amountUsdc,
+    bytes[] memory swapData
+) internal virtual returns (uint256 totalAmountA, uint256 totalAmountB) {
 ```
 
 The `CygnusBorrow` contract will send `amountUsdc` to the router. The router then converts 50% of USDC to the `CygnusBorrow`'s collateral (an LP Token) token0 and 50% to token1. It then mints the LP Token, sends it to the collateral contract and mints CygLP to the borrower.
@@ -33,27 +73,32 @@ We pass token0 and token1 as parameters as these are used by the previous functi
 
 **Deleverage**
 
-```
-
+```solidity
 /**
+ *  @notice Converts an amount of LP Token to USDC. It is called after calling `burn` on a uniswapV2 pair, which
+ *          receives amountTokenA of token0 and amountTokenB of token1.
  *  @param amountTokenA The amount of token A to convert to USDC
  *  @param amountTokenB The amount of token B to convert to USDC
- *  @param lpTokenPair The address of the LP Token
+ *  @param token0 The address of token0 from the LP Token pair
+ *  @param token1 The address of token1 from the LP Token pair
+ *  @param swapData The bytes array of 1inch optimal deleverage swaps
  */
-function convertLPTokenToUsdc(
+function convertLiquidityToUsdc(
     uint256 amountTokenA,
     uint256 amountTokenB,
-    address lpTokenPair
-) internal returns (uint256 amountUSDC);
+    address token0,
+    address token1,
+    bytes[] memory swapData
+) internal virtual returns (uint256 amountUsdc) {
 ```
 
-The `CygnusCollateral` contract will send an LP Token amount to the router. The router then transfers the LP Token to the liquidity pool and calls the `burn` function on the DEX, burning the amount of LP Token and returning the assets from the LP Token (amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to USDC, sending it back to the borrowable contract.
+The Collateral contract will send an LP Token amount to the router. The router then transfers the LP Token to the liquidity pool and calls the `burn` function on the DEX, burning the amount of LP Token and returning the assets from the LP Token (amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to USDC, sending it back to the borrowable contract.
 
 <hr />
 
 **Liquidate**
 
-```
+```solidity
 /**
  *  @param borrowable The address of the Cygnus borrow contract the borrower has debt with
  *  @param amountMax The amount to liquidate
@@ -68,7 +113,6 @@ function liquidate(
     address recipient,
     uint256 deadline
 ) external returns (uint256 amount, uint256 seizeTokens);
-
 ```
 
 The `liquidate` function will send USDC back to the borrow contract and call the `seizeDeneb` function on the collateral contract, increasing the liquidator's collateral balance (LP Token) by the liquidated amount PLUS the `liquidationIncentive` (Default is 5%) and decrease the collateral balance (LP Token) of the user being liquidated. The router first transfers `amountMax` of USDC from the liquidator to the borrow contract (it checks if amountMax is more than borrower's total borrow balance, if so, then just returns borrow balance) and then will liquidate the `borrower` address.
@@ -79,7 +123,7 @@ The liquidator has CygLP in their wallet which can be redeemed at any time for t
 
 **Liquidate to USDC**
 
-```
+```solidity
 /**
  *  @param borrowable The address of the Cygnus borrow contract the borrower has debt with
  *  @param amountMax The amount to liquidate
