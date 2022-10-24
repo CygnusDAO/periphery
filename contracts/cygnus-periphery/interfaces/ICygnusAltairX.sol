@@ -2,11 +2,10 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import "./ICygnusAltairCall.sol";
+import { ICygnusAltairCall } from "./ICygnusAltairCall.sol";
 
 // Interfaces
-import { IYakRouter } from "./IYakRouter.sol";
-import { IDexRouter02 } from "./core/IDexRouter.sol";
+import { IAggregationRouterV4 } from "./IAggregationRouterV4.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
@@ -56,19 +55,19 @@ interface ICygnusAltairX is ICygnusAltairCall {
      */
     error CygnusAltair__MsgSenderNotCollateral(address sender, address collateral);
 
+    /**
+     *  @custom:error MsgSenderNotAdmin Reverts when the msg sender is not the cygnus factory admin
+     */
+    error CygnusAltair__MsgSenderNotAdmin(address sender, address admin);
+
+    /**
+     *  @custom:error InsufficientLPTokenAmount Reverts when the swapped amount is less than the min requested
+     */
+    error CygnusAltair__InsufficientLPTokenAmount(uint256 lpAmountMin, uint256 liquidity);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @return hangar18 The address of the Cygnus factory contract V1
-     */
-    function hangar18() external view returns (address);
-
-    /**
-     *  @return nativeToken The address of wrapped Avax
-     */
-    function nativeToken() external view returns (address);
 
     /**
      *  @return usdc The address of USDC on this chain
@@ -76,14 +75,25 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function usdc() external view returns (address);
 
     /**
-     *  @return LOCAL_BYTES Empty bytes 0x
+     *  @return hangar18 The address of the Cygnus factory contract - Used to get the nativeToken and USDC address
+     *                   on this chain
      */
-    function LOCAL_BYTES() external view returns (bytes memory);
+    function hangar18() external view returns (address);
 
     /**
-     *  @return YAK_ROUTER The address of Yak's dex aggregator
+     *  @return nativeToken The address of the native token on this chain (ie. WETH)
      */
-    function YAK_ROUTER() external pure returns (IYakRouter);
+    function nativeToken() external view returns (address);
+
+    /**
+     *  @return aggregationRouterV4 Address of the 1Inch aggregation router v4 on this chain
+     */
+    function aggregationRouterV4() external view returns (IAggregationRouterV4);
+
+    /**
+     *  @return LOCAL_BYTES Empty bytes for internal calls
+     */
+    function LOCAL_BYTES() external view returns (bytes memory);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -102,7 +112,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 amount,
         address recipient,
         uint256 deadline,
-        bytes memory permitData
+        bytes calldata permitData
     ) external;
 
     /**
@@ -137,6 +147,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
 
     /**
      *  @notice Function to liquidate a borrower and immediately convert holdings to USDC
+     *  @param lpTokenPair The address of the LP Token that represents the CygLP we are seizing
+     *  @param collateral The address of the CygnusCollateral contract
      *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The amount to liquidate
      *  @param borrower The address of the borrower
@@ -144,11 +156,14 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param deadline The time by which the transaction must be included to effect the change
      */
     function liquidateToUsdc(
+        address lpTokenPair,
         address borrowable,
+        address collateral,
         uint256 amountMax,
         address borrower,
         address recipient,
-        uint256 deadline
+        uint256 deadline,
+        bytes[] calldata swapData
     ) external returns (uint256 amountUsdc);
 
     /**
@@ -160,6 +175,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
+     *  @param swapData the 1inch swap data to convert USDC to liquidity
      */
     function leverage(
         address collateral,
@@ -168,7 +184,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 amountLPMin,
         address recipient,
         uint256 deadline,
-        bytes calldata permitData
+        bytes calldata permitData,
+        bytes[] calldata swapData
     ) external;
 
     /**
@@ -178,13 +195,15 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param redeemTokens The amount to CygLP to deleverage
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
+     *  @param swapData the 1inch swap data to convert liquidity to USDC
      */
     function deleverage(
         address collateral,
         address borrowable,
         uint256 redeemTokens,
         uint256 deadline,
-        bytes calldata permitData
+        bytes calldata permitData,
+        bytes[] calldata swapData
     ) external;
 
     /**
@@ -205,6 +224,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @notice Will only succeed if: Caller is collateral contract & collateral contract was called by router
      *  @param sender Address of the contract that initialized the redeem transaction (address of the router)
      *  @param redeemAmount The amount to deleverage
+     *  @param token0 The address of the collateral`s underlying token0
+     *  @param token1 The address of the collateral`s underlying token1
      *  @param data The encoded byte data passed from the CygnusCollateral contract to the router
      */
     function altairRedeem_u91A(
