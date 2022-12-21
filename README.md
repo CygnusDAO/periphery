@@ -1,6 +1,6 @@
 # **Cygnus Periphery Contract**
 
-**Important: Currently updating to integrate with 1inch V5. Expect a V2 router to be added shortly. **
+**Important: Currently updating to integrate with 1inch V5. Expect a V2 router to be added shortly.**
 
 This is the main periphery contract to interact with the Cygnus Core contracts. 
 
