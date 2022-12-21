@@ -1,0 +1,31 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SafeTransferLib",
+  "sourceName": "contracts/cygnus-periphery/libraries/SafeTransferLib.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ApproveFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "ETHTransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferFailed",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "TransferFromFailed",
+      "type": "error"
+    }
+  ],
+  "bytecode": "0x60566037600b82828239805160001a607314602a57634e487b7160e01b600052600060045260246000fd5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600080fdfea26469706673582212203f73a4f346c4af6b16c3ce27024de3af0bbdc3f0ae9695972b333252173cedf864736f6c63430008040033",
+  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600080fdfea26469706673582212203f73a4f346c4af6b16c3ce27024de3af0bbdc3f0ae9695972b333252173cedf864736f6c63430008040033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

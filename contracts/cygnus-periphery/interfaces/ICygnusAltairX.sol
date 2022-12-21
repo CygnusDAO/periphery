@@ -2,9 +2,10 @@
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { ICygnusAltairCall } from "./ICygnusAltairCall.sol";
+import "./ICygnusAltairCall.sol";
 
 // Interfaces
+import { IERC20 } from "./core/IERC20.sol";
 import { IAggregationRouterV4 } from "./IAggregationRouterV4.sol";
 
 /**
@@ -23,7 +24,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
     /**
      *  @custom:error TransactionExpired Reverts when the current block.timestamp is past deadline
      */
-    error CygnusAltair__TransactionExpired(uint256);
+    error CygnusAltair__TransactionExpired(uint256 deadline);
 
     /**
      *  @custom:error InsufficientBurnAmountA Reverts when the burn amount is 0 for token A
@@ -34,6 +35,11 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @custom:error InsufficientBurnAmountB Reverts when the burn amount is 0 for token B
      */
     error CygnusAltair__InsufficientBurnAmountB(uint256 amount);
+
+    /**
+     *  @custom:error InsufficientRedeemAmount Reverts when amount of USDC received is less than the minimum asked
+     */
+    error CygnusAltair__InsufficientRedeemAmount(uint256 usdcAmountMin, uint256 amountUsdc);
 
     /**
      *  @custom:error MsgSenderNotRouter Reverts when the msg sender is not the router in the leverage function
@@ -75,7 +81,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function usdc() external view returns (address);
 
     /**
-     *  @return hangar18 The address of the Cygnus factory contract - Used to get the nativeToken and USDC address
+     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USDC address
      *                   on this chain
      */
     function hangar18() external view returns (address);
@@ -86,7 +92,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
     function nativeToken() external view returns (address);
 
     /**
-     *  @return aggregationRouterV4 Address of the 1Inch aggregation router v4 on this chain
+     *  @return aggregationRouterV4 Address of the 1Inch router on this chain
      */
     function aggregationRouterV4() external view returns (IAggregationRouterV4);
 
@@ -193,6 +199,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param collateral The address of the collateral of the lending pool
      *  @param borrowable The address of the borrowable of the lending pool
      *  @param redeemTokens The amount to CygLP to deleverage
+     *  @param usdcAmountMin The minimum amount of USDC to receive
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData The permit calldata (if any)
      *  @param swapData the 1inch swap data to convert liquidity to USDC
@@ -201,6 +208,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
         address collateral,
         address borrowable,
         uint256 redeemTokens,
+        uint256 usdcAmountMin,
         uint256 deadline,
         bytes calldata permitData,
         bytes[] calldata swapData

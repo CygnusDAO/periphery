@@ -12,11 +12,6 @@ require('@nomiclabs/hardhat-ethers');
 // Ethers
 const { ethers } = require('ethers');
 
-// KEYS
-require('dotenv').config({ path: path.resolve(__dirname, './.env') });
-
-const { PRIVATE_KEY } = process.env;
-
 module.exports = {
     solidity: {
         version: '0.8.4',
