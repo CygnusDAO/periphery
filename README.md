@@ -1,6 +1,6 @@
 # **Cygnus Periphery Contract**
 
-Update: Upgraded to 1inch V5 router.
+**Update: Upgraded to 1inch V5 router. (19/01/2023)**
 
 This is the main periphery contract to interact with the Cygnus Core contracts. 
 
