@@ -316,7 +316,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     }
 
     /**
-     *  @notice Creates the swap with 1Inch's AggregatorV4. We pass an extra param `updatedAmount` to eliminate
+     *  @notice Creates the swap with 1Inch's AggregatorV5. We pass an extra param `updatedAmount` to eliminate
      *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
      *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
      *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
