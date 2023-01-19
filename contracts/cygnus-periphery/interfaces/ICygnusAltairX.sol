@@ -6,7 +6,7 @@ import "./ICygnusAltairCall.sol";
 
 // Interfaces
 import { IERC20 } from "./core/IERC20.sol";
-import { IAggregationRouterV4 } from "./IAggregationRouterV4.sol";
+import { IAggregationRouterV5 } from "./IAggregationRouterV5.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
@@ -94,7 +94,7 @@ interface ICygnusAltairX is ICygnusAltairCall {
     /**
      *  @return aggregationRouterV4 Address of the 1Inch router on this chain
      */
-    function aggregationRouterV4() external view returns (IAggregationRouterV4);
+    function aggregationRouterV5() external view returns (IAggregationRouterV5);
 
     /**
      *  @return LOCAL_BYTES Empty bytes for internal calls
@@ -111,15 +111,8 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param amount Amount of USDC to borrow
      *  @param recipient The address of the borrower
      *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param permitData The permit calldata (if any)
      */
-    function borrow(
-        address borrowable,
-        uint256 amount,
-        address recipient,
-        uint256 deadline,
-        bytes calldata permitData
-    ) external;
+    function borrow(address borrowable, uint256 amount, address recipient, uint256 deadline) external;
 
     /**
      *  @notice Main function used in Cygnus to repay borrows
@@ -180,7 +173,6 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param amountLPMin The minimum amount of LP Tokens to receive
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param permitData The permit calldata (if any)
      *  @param swapData the 1inch swap data to convert USDC to liquidity
      */
     function leverage(
@@ -190,7 +182,6 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 amountLPMin,
         address recipient,
         uint256 deadline,
-        bytes calldata permitData,
         bytes[] calldata swapData
     ) external;
 
@@ -201,7 +192,6 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param redeemTokens The amount to CygLP to deleverage
      *  @param usdcAmountMin The minimum amount of USDC to receive
      *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param permitData The permit calldata (if any)
      *  @param swapData the 1inch swap data to convert liquidity to USDC
      */
     function deleverage(
@@ -210,7 +200,6 @@ interface ICygnusAltairX is ICygnusAltairCall {
         uint256 redeemTokens,
         uint256 usdcAmountMin,
         uint256 deadline,
-        bytes calldata permitData,
         bytes[] calldata swapData
     ) external;
 

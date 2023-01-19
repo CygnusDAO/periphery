@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
 // Dependencies
@@ -13,12 +13,12 @@ interface ICygnusBorrowControl is ICygnusTerminal {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error ParameterNotInRange Emitted when the value is below minRange or above maxRange
+     *  @custom:error ParameterNotInRange Reverts when the value is below min or above max
      */
-    error CygnusBorrowControl__ParameterNotInRange(uint256 minRange, uint256 maxRange, uint256 value);
+    error CygnusBorrowControl__ParameterNotInRange(uint256 min, uint256 max, uint256 value);
 
     /**
-     *  @custom:error BorrowTrackerAlreadySet Emitted when the new borrow tracker is the same as current
+     *  @custom:error BorrowTrackerAlreadySet Reverts when the new borrow tracker is the same as current
      */
     error CygnusBorrowControl__BorrowTrackerAlreadySet(address currentTracker, address newTracker);
 
@@ -27,28 +27,25 @@ interface ICygnusBorrowControl is ICygnusTerminal {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when the borrow tracker is updated by admins
      *  @param oldBorrowRewarder The address of the borrow rewarder up until this point used for CYG distribution
      *  @param newBorrowRewarder The address of the new borrow rewarder
-     *  @custom:event NewCygnusBorrowRewarder Emitted when a new borrow tracker is set set by admins
+     *  @custom:event NewCygnusBorrowRewarder Logs when a new borrow tracker is set set by admins
      */
     event NewCygnusBorrowRewarder(address oldBorrowRewarder, address newBorrowRewarder);
 
     /**
-     *  @notice Logs when the reserve factor is updated by admins
      *  @param oldReserveFactor The reserve factor used in this shuttle until this point
      *  @param newReserveFactor The new reserve factor set
-     *  @custom:event NewReserveFactor Emitted when a new reserve factor is set set by admins
+     *  @custom:event NewReserveFactor Logs when a new reserve factor is set set by admins
      */
     event NewReserveFactor(uint256 oldReserveFactor, uint256 newReserveFactor);
 
     /**
-     *  @notice Logs when a new interest rate model is set
      *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
-     *  @param kinkMultiplier_ The increase to farmApy once kink utilization is reached
+     *  @param kinkMultiplier_ The increase to multiplier per year once kink utilization is reached
      *  @param kinkUtilizationRate_ The rate at which the jump interest rate takes effect
-     *  custom:event NewInterestRateParameters Emitted when a new interest rate is set
+     *  custom:event NewInterestRateParameters Longs when a new interest rate model is set
      */
     event NewInterestRateParameters(
         uint256 baseRatePerYear,
@@ -121,7 +118,7 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     /**
      *  @notice 👽
      *  @notice Updates the borrow rewarder contract
-     *  @param newBorrowRewarder The address of the new Borrow rewarder
+     *  @param newBorrowRewarder The address of the new CYG Borrow rewarder
      *  @custom:security non-reentrant
      */
     function setCygnusBorrowRewarder(address newBorrowRewarder) external;
@@ -135,6 +132,7 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     function setReserveFactor(uint256 newReserveFactor) external;
 
     /**
+     *  @notice 👽
      *  @notice Internal function to update the parameters of the interest rate model
      *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)

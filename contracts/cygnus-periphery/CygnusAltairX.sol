@@ -7,13 +7,13 @@ import { Context } from "./utils/Context.sol";
 
 // Interfaces
 import { IERC20 } from "./interfaces/core/IERC20.sol";
-import { IWAVAX } from "./interfaces/core/IWAVAX.sol";
+import { IWETH } from "./interfaces/core/IWETH.sol";
 import { IDexPair } from "./interfaces/core/IDexPair.sol";
 import { ICygnusBorrow } from "./interfaces/core/ICygnusBorrow.sol";
 import { ICygnusFactory } from "./interfaces/core/ICygnusFactory.sol";
 import { ICygnusTerminal } from "./interfaces/core/ICygnusTerminal.sol";
 import { ICygnusCollateral } from "./interfaces/core/ICygnusCollateral.sol";
-import { IAggregationRouterV4, IAggregationExecutor } from "./interfaces/IAggregationRouterV4.sol";
+import { IAggregationRouterV5, IAggregationExecutor } from "./interfaces/IAggregationRouterV5.sol";
 
 // Libraries
 import { PRBMath, PRBMathUD60x18 } from "./libraries/PRBMathUD60x18.sol";
@@ -24,7 +24,7 @@ import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
  *  @author CygnusDAO
  *  @notice The router contract is used to interact with Cygnus core contracts using 1inch Dex Aggregator
  *
- *          This router is integrated with 1inch's AggregationRouterV4 across all chains, and it works mostly
+ *          This router is integrated with 1inch's AggregationRouter5 across all chains, and it works mostly
  *          on-chain. The queries are estimated before the first call, following the same logic for swaps as this
  *          contract and then each proceeding call builds on top of the next one, keeping the data passed to the
  *          executioner contract intact at each stage, but we update the `amount` passed during each call to the
@@ -37,9 +37,8 @@ import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
  *          passed from each step and override the `amount` with the current balance of this contract (both amounts
  *          should be the same, or in some cases could be off by a very small amount).
  *
- *          The max amount of swaps that we can perform during a leverage or de-leverage is 3, thus the data passed
- *          will always be a at least a 3-length byte array. In case a swap is not neeeded, we pass a 0 value in its
- *          place as to keep the length fixed.
+ *          The max amount of swaps that we can perform during a leverage or de-leverage is 2, thus the data passed
+ *          will always be a at least a 2-length byte array.
  *
  *          Functions in this contract allow for:
  *              - Minting CygLP and CygUSD (Pool tokens for collateral and borrowable respectively)
@@ -53,8 +52,8 @@ import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
  */
 contract CygnusAltairX is ICygnusAltairX, Context {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            1. LIBRARIES
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          1. LIBRARIES
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
      *  @custom:library PRBMathUD60x18 Library for uint256 fixed point math, also imports the main library `PRBMath`
@@ -67,8 +66,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     using SafeTransferLib for address;
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            2. STORAGE
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          2. STORAGE
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ───────────────────────────────────────────── Internal ────────────────────────────────────────────────  */
 
@@ -129,7 +128,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     /**
      *  @inheritdoc ICygnusAltairX
      */
-    IAggregationRouterV4 public immutable override aggregationRouterV4;
+    IAggregationRouterV5 public immutable override aggregationRouterV5;
 
     /**
      *  @inheritdoc ICygnusAltairX
@@ -137,16 +136,16 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     bytes public constant override LOCAL_BYTES = new bytes(0);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            3. CONSTRUCTOR
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          3. CONSTRUCTOR
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
      *  @notice Constructs the periphery contract. Factory must be deployed on the chain first to get the addresses
-     *          of deployers and the wrapped native token (WAVAX, WETH, WFTM, etc.)
+     *          of deployers and the wrapped native token (WETH, WFTM, etc.)
      *  @param factory The address of the Cygnus Factory contract on this chain
-     *  @param oneInchRouterV4 The address of the 1inch Dex Aggregator Router V4 contract on this chain
+     *  @param oneInchRouterV5 The address of the 1inch Dex Aggregator Router V5 contract on this chain
      */
-    constructor(address factory, address oneInchRouterV4) {
+    constructor(address factory, address oneInchRouterV5) {
         // Factory
         hangar18 = factory;
 
@@ -157,22 +156,22 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         usdc = ICygnusFactory(factory).usdc();
 
         // Assign the dex aggregator on this chain
-        aggregationRouterV4 = IAggregationRouterV4(oneInchRouterV4);
+        aggregationRouterV5 = IAggregationRouterV5(oneInchRouterV5);
     }
 
     /**
-     *  @notice Only accept AVAX via fallback from the Wrapped AVAX contract
+     *  @notice Only accept native via fallback from the Wrapped native contract
      */
     receive() external payable {
-        /// @custom:error NotNativeTokenSender Avoid receiving anything but Wrapped AVAX
+        /// @custom:error NotNativeTokenSender Avoid receiving anything but Wrapped native
         if (_msgSender() != nativeToken) {
             revert CygnusAltair__NotNativeTokenSender({ poolToken: _msgSender() });
         }
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            4. MODIFIERS
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          4. MODIFIERS
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
      *  @custom:modifier checkDeadline Reverts the transaction if the block.timestamp is after deadline
@@ -183,8 +182,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            5. CONSTANT FUNCTIONS
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          5. CONSTANT FUNCTIONS
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ───────────────────────────────────────────── Internal ────────────────────────────────────────────────  */
 
@@ -212,7 +211,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      *  @return This contract's balance
      */
     function contractBalanceOf(address token) internal view returns (uint256) {
-        return IERC20(token).balanceOf(address(this));
+        // Solady's balanceOf
+        return token.balanceOf(address(this));
     }
 
     /**
@@ -232,59 +232,10 @@ contract CygnusAltairX is ICygnusAltairX, Context {
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
-            6. NON-CONSTANT FUNCTIONS
-        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+          6. NON-CONSTANT FUNCTIONS
+      ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
-
-    /**
-     *  @notice The permit for the terminal contracts
-     *  @param amount The amount to allow borrow
-     *  @param deadline A time in the future when the allowance expires
-     */
-    function permitInternal(
-        address terminalToken,
-        uint256 amount,
-        uint256 deadline,
-        bytes calldata permitData
-    ) internal virtual {
-        // If no permit return
-        if (permitData.length == 0) return;
-
-        // Decode permit data
-        (bool approveMax, uint8 v, bytes32 r, bytes32 s) = abi.decode(permitData, (bool, uint8, bytes32, bytes32));
-
-        // Get approve amount
-        uint256 value = approveMax ? type(uint256).max : amount;
-
-        // Validate permit
-        ICygnusTerminal(terminalToken).permit(_msgSender(), address(this), value, deadline, v, r, s);
-    }
-
-    /**
-     *  @notice The borrow permit for the borrow contracts
-     *  @param borrowable The address of the Cygnus borrow contract
-     *  @param amount The amount to allow borrow
-     *  @param deadline A time in the future when the allowance expires
-     */
-    function borrowPermitInternal(
-        address borrowable,
-        uint256 amount,
-        uint256 deadline,
-        bytes calldata permitData
-    ) internal virtual {
-        // If no borrow permit data return
-        if (permitData.length == 0) return;
-
-        // Decode permit data
-        (bool approveMax, uint8 v, bytes32 r, bytes32 s) = abi.decode(permitData, (bool, uint8, bytes32, bytes32));
-
-        // Get borrow approve amount
-        uint256 value = approveMax ? type(uint256).max : amount;
-
-        // Validate permit
-        ICygnusBorrow(borrowable).borrowPermit(_msgSender(), address(this), value, deadline, v, r, s);
-    }
 
     /**
      *  @param borrowable Address of the Cygnus borrow contract
@@ -310,12 +261,12 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         // Refund excess
         if (amountMax > amount) {
             uint256 refundAmount = amountMax - amount;
-            // Check if token is Avax
+            // Check if token is native
             if (token == nativeToken) {
-                // Withdraw Avax
-                IWAVAX(nativeToken).withdraw(refundAmount);
+                // Withdraw native
+                IWETH(nativeToken).withdraw(refundAmount);
 
-                // Transfer AVAX
+                // Transfer native
                 borrower.safeTransferETH(refundAmount);
             } else {
                 // Transfer Token
@@ -374,20 +325,18 @@ contract CygnusAltairX is ICygnusAltairX, Context {
      */
     function swapTokens(bytes memory swapData, uint256 updatedAmount) internal virtual returns (uint256 amountOut) {
         // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
-        (address caller, IAggregationRouterV4.SwapDescription memory desc, bytes memory data) = abi.decode(
-            swapData,
-            (address, IAggregationRouterV4.SwapDescription, bytes)
-        );
+        (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi
+            .decode(swapData, (address, IAggregationRouterV5.SwapDescription, bytes, bytes));
 
         // Update swap amount to current balance of src token (if needed)
         if (desc.amount != updatedAmount) desc.amount = updatedAmount;
 
         // Approve 1Inch Router in `srcToken` if necessary
-        approveContract(address(desc.srcToken), address(aggregationRouterV4), desc.amount);
+        approveContract(address(desc.srcToken), address(aggregationRouterV5), desc.amount);
 
         // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
         // of the leverage/deleverage functions anyways
-        (amountOut, , ) = aggregationRouterV4.swap(IAggregationExecutor(caller), desc, data);
+        (amountOut, ) = aggregationRouterV5.swap(IAggregationExecutor(caller), desc, permit, data);
     }
 
     /**
@@ -479,6 +428,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
             // Explicit return
             return contractBalanceOf(usdc);
         }
+
         // ─────────────────── 2. Not USDC, swap both to USDC
         // Swap token0 to USDC
         swapTokens(swapData[0], amountTokenA);
@@ -675,12 +625,8 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         address borrowable,
         uint256 amount,
         address recipient,
-        uint256 deadline,
-        bytes calldata permitData
+        uint256 deadline
     ) external virtual override checkDeadline(deadline) {
-        // Borrow permit
-        borrowPermitInternal(borrowable, amount, deadline, permitData);
-
         // Borrow amount
         ICygnusBorrow(borrowable).borrow(_msgSender(), recipient, amount, LOCAL_BYTES);
     }
@@ -766,14 +712,10 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         uint256 amountLPMin,
         address recipient,
         uint256 deadline,
-        bytes calldata permitData,
         bytes[] calldata swapData
     ) external virtual override checkDeadline(deadline) {
         // Get LP TokenPair
         address lpTokenPair = ICygnusCollateral(collateral).underlying();
-
-        // Permit (if any)
-        borrowPermitInternal(borrowable, amountUsdcDesired, deadline, permitData);
 
         // Pass LP Token, collateral, borrowable, amount, recipient
         leverageInternal(lpTokenPair, collateral, borrowable, amountUsdcDesired, amountLPMin, recipient, swapData);
@@ -830,6 +772,7 @@ contract CygnusAltairX is ICygnusAltairX, Context {
 
         // Check allowance and deposit the LP token in the collateral contract
         approveContract(cygnusShuttle.lpTokenPair, cygnusShuttle.collateral, liquidity);
+
         // Mint CygLP to the recipient
         ICygnusCollateral(cygnusShuttle.collateral).deposit(liquidity, cygnusShuttle.recipient);
     }
@@ -845,7 +788,6 @@ contract CygnusAltairX is ICygnusAltairX, Context {
         uint256 redeemTokens,
         uint256 usdcAmountMin,
         uint256 deadline,
-        bytes calldata permitData,
         bytes[] calldata swapData
     ) external virtual override checkDeadline(deadline) {
         /// @custom:error InvalidRedeemAmount Avoid redeeming 0 tokens
@@ -855,9 +797,6 @@ contract CygnusAltairX is ICygnusAltairX, Context {
 
         // Get collateral
         address lpTokenPair = ICygnusCollateral(collateral).underlying();
-
-        // Permit data
-        permitInternal(collateral, redeemTokens, deadline, permitData);
 
         // Internal deleverage
         deleverageInternal(collateral, borrowable, redeemTokens, lpTokenPair, usdcAmountMin, swapData);

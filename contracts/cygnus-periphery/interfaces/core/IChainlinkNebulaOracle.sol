@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: Unlicensed
-pragma solidity ^0.8.4;
+// SPDX-License-Identifier: Unlicense
+pragma solidity >=0.8.4;
 
+// Interfaces
 import { AggregatorV3Interface } from "./AggregatorV3Interface.sol";
 import { IDexPair } from "./IDexPair.sol";
 
@@ -13,27 +14,27 @@ interface IChainlinkNebulaOracle {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error PairIsInitialized Emitted when attempting to initialize an already initialized LP Token
+     *  @custom:error PairIsInitialized Reverts when attempting to initialize an already initialized LP Token
      */
     error ChainlinkNebulaOracle__PairAlreadyInitialized(address lpTokenPair);
 
     /**
-     *  @custom:error PairNotInitialized Emitted when attempting to get the price of an LP Token that is not initialized
+     *  @custom:error PairNotInitialized Reverts when attempting to get the price of an LP Token that is not initialized
      */
     error ChainlinkNebulaOracle__PairNotInitialized(address lpTokenPair);
 
     /**
-     *  @custom:error MsgSenderNotAdmin Emitted when attempting to access admin only methods
+     *  @custom:error MsgSenderNotAdmin Reverts when attempting to access admin only methods
      */
     error ChainlinkNebulaOracle__MsgSenderNotAdmin(address msgSender);
 
     /**
-     *  @custom:error AdminCantBeZero Emitted when attempting to set the admin if the pending admin is the zero address
+     *  @custom:error AdminCantBeZero Reverts when attempting to set the admin if the pending admin is the zero address
      */
     error ChainlinkNebulaOracle__AdminCantBeZero(address pendingAdmin);
 
     /**
-     *  @custom:error PendingAdminAlreadySet Emitted when attempting to set the same pending admin twice
+     *  @custom:error PendingAdminAlreadySet Reverts when attempting to set the same pending admin twice
      */
     error ChainlinkNebulaOracle__PendingAdminAlreadySet(address pendingAdmin);
 
@@ -42,13 +43,12 @@ interface IChainlinkNebulaOracle {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when a new LP Token is added to this oracle and the price is being tracked
      *  @param initialized Whether or not the LP Token is initialized
      *  @param oracleId The ID for this oracle
      *  @param lpTokenPair The address of the LP Token
      *  @param priceFeedA The address of the Chainlink's aggregator contract for this LP Token's token0
      *  @param priceFeedB The address of the Chainlink's aggregator contract for this LP Token's token1
-     *  @custom:event InitializeChainlinkNebula Emitted when an LP Token pair's price starts being tracked
+     *  @custom:event InitializeChainlinkNebula Logs when an LP Token pair's price starts being tracked
      */
     event InitializeChainlinkNebula(
         bool initialized,
@@ -59,12 +59,11 @@ interface IChainlinkNebulaOracle {
     );
 
     /**
-     *  @notice Logs when an LP Token is removed from this oracle, rendering all calls on this LP Token null
      *  @param oracleId The ID for this oracle
      *  @param lpTokenPair The contract address of the LP Token
      *  @param priceFeedA The contract address of Chainlink's aggregator contract for this LP Token's token0
      *  @param priceFeedB The contract address of the Chainlink's aggregator contract for this LP Token's token1
-     *  @custom:event DeleteChainlinkNebula Emitted when an LP Token pair is removed from this oracle
+     *  @custom:event DeleteChainlinkNebula Logs when an LP Token pair is removed from this oracle
      */
     event DeleteChainlinkNebula(
         uint24 oracleId,
@@ -75,18 +74,16 @@ interface IChainlinkNebulaOracle {
     );
 
     /**
-     *  @notice Logs when a new pending admin for the oracle is set
      *  @param oracleCurrentAdmin The address of the current oracle admin
      *  @param oraclePendingAdmin The address of the pending oracle admin
-     *  @custom:event NewNebulaPendingAdmin Emitted when a new pending admin is set, to be accepted by admin
+     *  @custom:event NewNebulaPendingAdmin Logs when a new pending admin is set, to be accepted by admin
      */
     event NewOraclePendingAdmin(address oracleCurrentAdmin, address oraclePendingAdmin);
 
     /**
-     *  @notice Logs when a new admin for the oracle is confirmed
      *  @param oracleOldAdmin The address of the old oracle admin
      *  @param oracleNewAdmin The address of the new oracle admin
-     *  @custom:event NewNebulaAdmin Emitted when the pending admin is confirmed as the new oracle admin
+     *  @custom:event NewNebulaAdmin Logs when the pending admin is confirmed as the new oracle admin
      */
     event NewOracleAdmin(address oracleOldAdmin, address oracleNewAdmin);
 

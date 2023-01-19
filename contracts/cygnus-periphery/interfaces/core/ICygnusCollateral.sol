@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
-// dependencies
+// Dependencies
 import { ICygnusCollateralModel } from "./ICygnusCollateralModel.sol";
 
 /**
@@ -13,65 +13,58 @@ interface ICygnusCollateral is ICygnusCollateralModel {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error InsufficientLiquidity Emitted when the user doesn't have enough liquidity for a transfer.
+     *  @custom:error InsufficientLiquidity Reverts when the user doesn't have enough liquidity to redeem
      */
     error CygnusCollateral__InsufficientLiquidity(address from, address to, uint256 value);
 
     /**
-     *  @custom:error LiquiditingSelf Emitted when liquidator is borrower
+     *  @custom:error LiquiditingSelf Reverts when liquidator address is the borrower address
      */
     error CygnusCollateral__CantLiquidateSelf(address borrower, address liquidator);
 
     /**
-     *  @custom:error MsgSenderNotBorrowable Emitted for liquidation when msg.sender is not borrowable.
+     *  @custom:error MsgSenderNotBorrowable Reverts when the msg.sender of the liquidation is not `borrowable`
      */
     error CygnusCollateral__MsgSenderNotBorrowable(address sender, address borrowable);
 
     /**
-     *  @custom:error CantLiquidateZero Emitted when the repayAmount is 0
+     *  @custom:error CantLiquidateZero Reverts when the repayAmount in a liquidation is 0
      */
     error CygnusCollateral__CantLiquidateZero();
 
     /**
-     *  @custom:error NotLiquidatable Emitted when there is no shortfall
+     *  @custom:error NotLiquidatable Reverts when liquidating an account that has no shortfall
      */
-    error CygnusCollateral__NotLiquidatable(uint256 userLiquidity, uint256 userShortfall);
+    error CygnusCollateral__NotLiquidatable(uint256 liquidity, uint256 shortfall);
 
     /**
-     *  @custom:error CantRedeemZero Emitted when trying to redeem 0 tokens
+     *  @custom:error CantRedeemZero Reverts when trying to redeem 0 tokens
      */
     error CygnusCollateral__CantRedeemZero();
 
     /**
-     *  @custom:error RedeemAmountInvalid Emitted when redeeming more than pool's totalBalance
+     *  @custom:error RedeemAmountInvalid Reverts when redeeming more than pool's totalBalance
      */
-    error CygnusCollateral__RedeemAmountInvalid(uint256 redeemAmount, uint256 totalBalance);
+    error CygnusCollateral__RedeemAmountInvalid(uint256 assets, uint256 totalBalance);
 
     /**
-     *  @custom:error InsufficientRedeemAmount Emitted when redeeming more than user balance of redeem Tokens
+     *  @custom:error InsufficientRedeemAmount Reverts when redeeming more shares than CygLP in this contract
      */
-    error CygnusCollateral__InsufficientRedeemAmount(uint256 cygLPTokens, uint256 redeemableAmount);
+    error CygnusCollateral__InsufficientRedeemAmount(uint256 cygLPTokens, uint256 shares);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
-    /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
-
-    /**
-     *  @param borrower The address of the borrower
-     *  @param redeemAmount The amount of CygLP to redeem
-     *  @return Whether the `borrower` account can redeem - if user has shortfall, returns false
-     */
-    function canRedeem(address borrower, uint256 redeemAmount) external returns (bool);
-
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
      *  @dev This should be called from `borrowable` contract
+     *  @notice Seizes CygLP from borrower and adds it to the liquidator's account
      *  @param liquidator The address repaying the borrow and seizing the collateral
      *  @param borrower The address of the borrower
      *  @param repayAmount The number of collateral tokens to seize
+     *  @return cygLPAmount The amount of CygLP seized
      */
     function seizeCygLP(
         address liquidator,
@@ -81,14 +74,15 @@ interface ICygnusCollateral is ICygnusCollateralModel {
 
     /**
      *  @dev This should be called from `Altair` contract
+     *  @notice Flash redeems the underlying LP Token
      *  @param redeemer The address redeeming the tokens (Altair contract)
-     *  @param redeemAmount The amount of the underlying asset being redeemed
-     *  @param data Calldata passed from router contract
+     *  @param assets The amount of the underlying assets to redeem
+     *  @param data Calldata passed from and back to router contract
      *  @custom:security non-reentrant
      */
     function flashRedeemAltair(
         address redeemer,
-        uint256 redeemAmount,
+        uint256 assets,
         bytes calldata data
     ) external;
 }

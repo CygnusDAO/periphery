@@ -1,40 +1,40 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
 // Dependencies
-import { IERC20Permit } from "./IERC20Permit.sol";
+import { IERC20 } from "./IERC20.sol";
 
 /**
  *  @title The interface for CygnusTerminal which handles pool tokens shared by Collateral and Borrow contracts
  *  @notice The interface for the CygnusTerminal contract allows minting/redeeming Cygnus pool tokens
  */
-interface ICygnusTerminal is IERC20Permit {
+interface ICygnusTerminal is IERC20 {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error CantMintZeroShares Emitted when attempting to mint zero amount of tokens
+     *  @custom:error CantMintZeroShares Reverts when attempting to mint zero amount of tokens
      */
     error CygnusTerminal__CantMintZeroShares();
 
     /**
-     *  @custom:error CantBurnZeroAssets Emitted when attempting to redeem zero amount of tokens
+     *  @custom:error CantBurnZeroAssets Reverts when attempting to redeem zero amount of tokens
      */
     error CygnusTerminal__CantRedeemZeroAssets();
 
     /**
-     *  @custom:error RedeemAmountInvalid Emitted when attempting to redeem over amount of tokens
+     *  @custom:error RedeemAmountInvalid Reverts when attempting to redeem over amount of tokens
      */
     error CygnusTerminal__RedeemAmountInvalid(uint256 assets, uint256 totalBalance);
 
     /**
-     *  @custom:error MsgSenderNotAdmin Emitted when attempting to call Admin-only functions
+     *  @custom:error MsgSenderNotAdmin Reverts when attempting to call Admin-only functions
      */
     error CygnusTerminal__MsgSenderNotAdmin(address sender, address factoryAdmin);
 
     /**
-     *  @custom:error CantSweepUnderlying Emitted when trying to sweep the underlying from this contract
+     *  @custom:error CantSweepUnderlying Reverts when trying to sweep the underlying asset from this contract
      */
     error CygnusTerminal__CantSweepUnderlying(address token, address underlying);
 
@@ -43,30 +43,27 @@ interface ICygnusTerminal is IERC20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when totalBalance is syncd to real balance
      *  @param totalBalance Total balance in terms of the underlying
-     *  @custom:event Sync Emitted when `totalBalance` is in sync with balanceOf(address(this)).
+     *  @custom:event Sync Logs when total balance of assets we hold is in sync with the underlying contract.
      */
     event Sync(uint256 totalBalance);
 
     /**
-     *  @notice Logs when an asset is minted
      *  @param sender The address of `CygnusAltair` or the sender of the function call
      *  @param recipient Address of the minter
      *  @param assets Amount of assets being deposited
      *  @param shares Amount of pool tokens being minted
-     *  @custom:event Mint Emitted when CygLP or CygUSD pool tokens are minted
+     *  @custom:event Mint Logs when CygLP or CygUSD pool tokens are minted
      */
     event Deposit(address indexed sender, address indexed recipient, uint256 assets, uint256 shares);
 
     /**
-     *  @notice Logs when an asset is redeemed
-     *  @param sender The address of `CygnusAltair` or the sender of the function call
+     *  @param sender The address of the redeemer of the shares
      *  @param recipient The address of the recipient of assets
      *  @param owner The address of the owner of the pool tokens
      *  @param assets The amount of assets to redeem
      *  @param shares The amount of pool tokens burnt
-     *  @custom:event Redeem Emitted when CygLP or CygUSD are redeemed
+     *  @custom:event Redeem Logs when CygLP or CygUSD are redeemed
      */
     event Withdraw(
         address indexed sender,
@@ -81,11 +78,6 @@ interface ICygnusTerminal is IERC20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
-
-    /**
-     *  @return totalBalance Total balance owned by this shuttle pool in terms of its underlying
-     */
-    function totalBalance() external view returns (uint256);
 
     /**
      *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
@@ -103,7 +95,17 @@ interface ICygnusTerminal is IERC20Permit {
     function shuttleId() external view returns (uint256);
 
     /**
+     *  @return totalBalance Total balance owned by this shuttle pool in terms of its underlying
+     */
+    function totalBalance() external view returns (uint256);
+
+    /**
      *  @return exchangeRate The ratio which 1 pool token can be redeemed for underlying amount
+     *  @notice There are two exchange rates: 1 for collateral and 1 for borrow contracts. The borrow contract
+     *          exchangeRate function is used to mint DAO reserves, as such we keep this as a non-view function,
+     *          and instead use the `exchangeRateStored` state variable to keep track of the exchange rate.
+     *          For the collateral exchange rate, we override this function in CygnusCollateralControl and mark
+     *          it as view.
      */
     function exchangeRate() external returns (uint256);
 
@@ -127,7 +129,7 @@ interface ICygnusTerminal is IERC20Permit {
      *  @param shares The amount of shares to redeem for assets
      *  @param recipient The address of the redeemer
      *  @param owner The address of the account who owns the shares
-     *  @return assets Amount of assets redeemed
+     *  @return assets Amount of assets returned to the user
      *  @custom:security non-reentrant
      */
     function redeem(

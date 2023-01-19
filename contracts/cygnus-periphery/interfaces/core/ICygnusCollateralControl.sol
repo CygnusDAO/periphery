@@ -1,5 +1,4 @@
-// SPDX-License-Identifier: Unlicensed
-
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
 // Dependencies
@@ -17,31 +16,31 @@ interface ICygnusCollateralControl is ICygnusTerminal {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error ParameterNotInRange Emitted when updating a collateral parameter outside of the range allowed
+     *  @custom:error ParameterNotInRange Reverts when the value is below min or above max
      */
-    error CygnusCollateralControl__ParameterNotInRange(uint256 minRange, uint256 maxRange, uint256 value);
+    error CygnusCollateralControl__ParameterNotInRange(uint256 min, uint256 max, uint256 value);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════  
             2. CUSTOM EVENTS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when the debt ratio is updated by admins
      *  @param oldDebtRatio The old debt ratio at which the collateral was liquidatable in this shuttle
      *  @param newDebtRatio The new debt ratio for this shuttle
+     *  @custom:event NewDebtRatio Logs when the debt ratio is updated by admins
      */
     event NewDebtRatio(uint256 oldDebtRatio, uint256 newDebtRatio);
 
     /**
-     *  @notice Logs when the liquidation incentive is updated by admins
      *  @param oldLiquidationIncentive The old incentive for liquidators taken from the collateral
      *  @param newLiquidationIncentive The new liquidation incentive for this shuttle
+     *  @custom:event NewLiquidationIncentive Logs when the liquidation incentive is updated by admins
      */
     event NewLiquidationIncentive(uint256 oldLiquidationIncentive, uint256 newLiquidationIncentive);
     /**
-     *  @notice Logs when the liquidation fee is updated by admins
      *  @param oldLiquidationFee The previous fee the protocol kept as reserves from each liquidation
      *  @param newLiquidationFee The new liquidation fee for this shuttle
+     *  @custom:event NewLiquidationFee Logs when the liquidation fee is updated by admins
      */
     event NewLiquidationFee(uint256 oldLiquidationFee, uint256 newLiquidationFee);
 

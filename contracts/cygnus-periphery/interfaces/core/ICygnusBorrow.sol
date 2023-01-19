@@ -1,7 +1,9 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
+// Dependencies
 import { ICygnusBorrowTracker } from "./ICygnusBorrowTracker.sol";
+import { ICygnusTerminal } from "./ICygnusTerminal.sol";
 
 /**
  *  @title ICygnusBorrow Interface for the main Borrow contract which handles borrows/liquidations
@@ -12,12 +14,12 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error BorrowExceedsTotalBalance Emitted when the borrow amount is higher than total balance
+     *  @custom:error BorrowExceedsTotalBalance Reverts when the borrow amount is higher than total balance
      */
     error CygnusBorrow__BorrowExceedsTotalBalance(uint256 invalidBorrowAmount, uint256 contractBalance);
 
     /**
-     *  @custom:error InsufficientLiquidity Emitted if there is borrowe has insufficient liquidity for this borrow
+     *  @custom:error InsufficientLiquidity Reverts if the borrower has insufficient liquidity for this borrow
      */
     error CygnusBorrow__InsufficientLiquidity(address cygnusCollateral, address borrower, uint256 borrowerBalance);
 
@@ -26,16 +28,15 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when an account liquidates a borrower
-     *  @param sender Indexed address of msg.sender (should be `Router` address
-     *  @param borrower Indexed address the account with negative account liquidity that shall be liquidated
+     *  @param sender Indexed address of the msg.sender
+     *  @param borrower Indexed address of the borrower
      *  @param liquidator Indexed address of the liquidator
      *  @param denebAmount The amount of the underlying asset to be seized
      *  @param repayAmount The amount of the underlying asset to be repaid (factors in liquidation incentive)
      *  @param accountBorrowsPrior Record of borrower's total borrows before this event
      *  @param accountBorrows Record of borrower's present borrows (accountBorrowsPrior + borrowAmount)
      *  @param totalBorrowsStored Record of the protocol's cummulative total borrows after this event
-     *  @custom:event Liquidate Emitted upon a successful liquidation
+     *  @custom:event Liquidate Logs when an account liquidates a borrower
      */
     event Liquidate(
         address indexed sender,
@@ -49,7 +50,6 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
     );
 
     /**
-     *  @notice Event for account borrows and repays indexed by periphery, borrower and receiver addresses
      *  @param sender Indexed address of msg.sender (should be `Router` address)
      *  @param receiver Indexed address of receiver (if repay = this is address(0), if borrow `Router` address)
      *  @param borrower Indexed address of the borrower
@@ -58,7 +58,7 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
      *  @param accountBorrowsPrior Record of borrower's total borrows before this event
      *  @param accountBorrows Record of borrower's total borrows after this event ( + borrowAmount) or ( - repayAmount)
      *  @param totalBorrowsStored Record of the protocol's cummulative total borrows after this event.
-     *  @custom:event Borrow Emitted upon a successful borrow or repay
+     *  @custom:event Borrow Logs when an account borrows or repays
      */
     event Borrow(
         address indexed sender,
@@ -92,15 +92,10 @@ interface ICygnusBorrow is ICygnusBorrowTracker {
      *  @param borrowAmount The amount of the underlying asset to borrow.
      *  @param data Calltype data passed to Router contract.
      */
-    function borrow(
-        address borrower,
-        address receiver,
-        uint256 borrowAmount,
-        bytes calldata data
-    ) external;
+    function borrow(address borrower, address receiver, uint256 borrowAmount, bytes calldata data) external;
 
     /**
      *  @notice Overrides the exchange rate of `CygnusTerminal` for borrow contracts to mint reserves
      */
-    function exchangeRate() external override returns (uint256);
+    function exchangeRate() external override(ICygnusTerminal) returns (uint256);
 }

@@ -1,6 +1,7 @@
-// SPDX-License-Identifier: Unlicensed
+// SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.4;
 
+// Dependencies
 import { ICygnusBorrowApprove } from "./ICygnusBorrowApprove.sol";
 
 interface ICygnusBorrowTracker is ICygnusBorrowApprove {
@@ -9,12 +10,12 @@ interface ICygnusBorrowTracker is ICygnusBorrowApprove {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Logs when interest is accrued
      *  @param cashStored Total balance of this lending pool's asset (USDC)
      *  @param interestAccumulated Interest accumulated since last accrual
      *  @param borrowIndexStored The latest stored borrow index
      *  @param totalBorrowsStored Total borrow balances of this lending pool
      *  @param borrowRateStored The current borrow rate
+     *  @custom:event AccrueInterest Logs when interest is accrued to borrows and reserves
      */
     event AccrueInterest(
         uint256 cashStored,
@@ -52,11 +53,6 @@ interface ICygnusBorrowTracker is ICygnusBorrowApprove {
     function borrowRate() external view returns (uint112);
 
     /**
-     *  @return utilizationRate The current utilization rate for this shuttle
-     */
-    function utilizationRate() external view returns (uint256);
-
-    /**
      *  @return lastAccrualTimestamp The unix timestamp stored of the last interest rate accrual
      */
     function lastAccrualTimestamp() external view returns (uint32);
@@ -68,6 +64,16 @@ interface ICygnusBorrowTracker is ICygnusBorrowApprove {
      *  @return balance The account's outstanding borrow balance or 0 if borrower's interest index is zero
      */
     function getBorrowBalance(address borrower) external view returns (uint256 balance);
+
+    /**
+     *  @return utilizationRate The current utilization rate for this shuttle
+     */
+    function utilizationRate() external view returns (uint256);
+
+    /**
+     *  @return supplyRate The current supply rate for this shuttle
+     */
+    function supplyRate() external view returns (uint256);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -81,7 +87,7 @@ interface ICygnusBorrowTracker is ICygnusBorrowApprove {
     function accrueInterest() external;
 
     /**
-     *  @notice Tracks borrows of each user for farming rewards and passes the borrow data to the farming pool
+     *  @notice Tracks borrows of each user for farming rewards and passes the borrow data back to the CYG Rewarder
      *  @param borrower Address of borrower
      */
     function trackBorrow(address borrower) external;
