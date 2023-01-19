@@ -21,29 +21,27 @@ This is the main periphery contract to interact with the Cygnus Core contracts.
 
 ```solidity
 /**
- *  @notice Creates the swap with 1Inch's AggregatorV4. We pass an extra param `updatedAmount` to eliminate
+ *  @notice Creates the swap with 1Inch's AggregatorV5. We pass an extra param `updatedAmount` to eliminate
  *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
  *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
  *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
  *  @param swapData The data from 1inch `swap` query
- *  @param updatedAmount We update the swap amount with the current balanceOf this contract source token
+ *  @param updatedAmount The balanceOf this contract`s srcToken
  */
-function swapTokens(bytes memory swapData, uint256 updatedAmount) internal virtual {
+function swapTokens(bytes memory swapData, uint256 updatedAmount) internal virtual returns (uint256 amountOut) {
     // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
-    (address caller, IAggregationRouterV4.SwapDescription memory desc, bytes memory data) = abi.decode(
-        swapData,
-        (address, IAggregationRouterV4.SwapDescription, bytes)
-    );
-
-    // Update amountIn to current balance of src token (in case of small difference)
+    (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi
+        .decode(swapData, (address, IAggregationRouterV5.SwapDescription, bytes, bytes));
+                                                                                                                     
+    // Update swap amount to current balance of src token (if needed)
     if (desc.amount != updatedAmount) desc.amount = updatedAmount;
-
+                                                                                                                     
     // Approve 1Inch Router in `srcToken` if necessary
-    approveContract(address(desc.srcToken), address(aggregationRouterV4), desc.amount);
-
+    approveContract(address(desc.srcToken), address(aggregationRouterV5), desc.amount);
+                                                                                                                     
     // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
     // of the leverage/deleverage functions anyways
-    aggregationRouterV4.swap(IAggregationExecutor(caller), desc, data);
+    (amountOut, ) = aggregationRouterV5.swap(IAggregationExecutor(caller), desc, permit, data);
 }
 ```
 
