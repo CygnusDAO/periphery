@@ -1,10 +1,10 @@
 # **Cygnus Periphery Contract**
 
-**Important: Currently updating to integrate with 1inch V5. Expect a V2 router to be added shortly.**
+Update: Upgraded to 1inch V5 router.
 
 This is the main periphery contract to interact with the Cygnus Core contracts. 
 
- This router is integrated with <a href="https://1inch.io">1inch</a> using their latest Aggregation Router V4, and it works mostly
+ This router is integrated with <a href="https://1inch.io">1inch</a> using their latest Aggregation Router V5, and it works mostly
  on-chain. The queries are estimated before the first call off-chain, following the same logic for each swap as this
  contract. Each proceeding call builds on top of the previous one, so we can estimate the amounts using the `returnAmount` of each API call. At the time of the swap, the router updates the amount of srcToken, in case it's off slightly, but keeps the same executioner and executioner data intact.
  
