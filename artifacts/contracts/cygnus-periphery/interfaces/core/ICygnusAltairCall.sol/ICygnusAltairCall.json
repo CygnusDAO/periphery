@@ -11,11 +11,6 @@
           "type": "address"
         },
         {
-          "internalType": "address",
-          "name": "borrower",
-          "type": "address"
-        },
-        {
           "internalType": "uint256",
           "name": "borrowAmount",
           "type": "uint256"

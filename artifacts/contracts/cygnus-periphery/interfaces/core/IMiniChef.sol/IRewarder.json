@@ -4,20 +4,12 @@
   "sourceName": "contracts/cygnus-periphery/interfaces/core/IMiniChef.sol",
   "abi": [
     {
-      "inputs": [],
-      "name": "isNative",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "pid",
+          "type": "uint256"
+        },
         {
           "internalType": "address",
           "name": "user",
@@ -25,42 +17,21 @@
         },
         {
           "internalType": "uint256",
-          "name": "newLpAmount",
+          "name": "sushiAmount",
           "type": "uint256"
-        }
-      ],
-      "name": "onJoeReward",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
         }
       ],
       "name": "pendingTokens",
       "outputs": [
         {
-          "internalType": "uint256",
-          "name": "pending",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "rewardToken",
-      "outputs": [
-        {
-          "internalType": "contract IERC20",
+          "internalType": "address[]",
           "name": "",
-          "type": "address"
+          "type": "address[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
         }
       ],
       "stateMutability": "view",

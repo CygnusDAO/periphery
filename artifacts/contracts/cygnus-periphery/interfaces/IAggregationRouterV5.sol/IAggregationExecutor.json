@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
   "contractName": "IAggregationExecutor",
-  "sourceName": "contracts/cygnus-periphery/interfaces/IAggregationRouterV4.sol",
+  "sourceName": "contracts/cygnus-periphery/interfaces/IAggregationRouterV5.sol",
   "abi": [
     {
       "inputs": [
@@ -9,14 +9,9 @@
           "internalType": "address",
           "name": "msgSender",
           "type": "address"
-        },
-        {
-          "internalType": "bytes",
-          "name": "data",
-          "type": "bytes"
         }
       ],
-      "name": "callBytes",
+      "name": "execute",
       "outputs": [],
       "stateMutability": "payable",
       "type": "function"

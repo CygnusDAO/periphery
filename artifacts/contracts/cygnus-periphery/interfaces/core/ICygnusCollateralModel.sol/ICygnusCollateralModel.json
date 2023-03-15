@@ -6,40 +6,13 @@
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "origin",
-          "type": "address"
-        }
-      ],
-      "name": "CygnusCollateralChef__OnlyEOAAllowed",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "tokenReward",
-          "type": "address"
-        }
-      ],
-      "name": "CygnusCollateralChef__VoidAlreadyInitialized",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "uint256",
-          "name": "minRange",
+          "name": "min",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "maxRange",
+          "name": "max",
           "type": "uint256"
         },
         {
@@ -81,49 +54,6 @@
         }
       ],
       "name": "CygnusCollateralModel__BorrowerCantBeAddressZero",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "mintTokens",
-          "type": "uint256"
-        }
-      ],
-      "name": "CygnusCollateralVoid__CantMintZero",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "origin",
-          "type": "address"
-        }
-      ],
-      "name": "CygnusCollateralVoid__NotNativeTokenSender",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "redeemAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalBalance",
-          "type": "uint256"
-        }
-      ],
-      "name": "CygnusCollateralVoid__RedeemAmountExceedsBalance",
       "type": "error"
     },
     {
@@ -187,6 +117,11 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
           "internalType": "uint8",
           "name": "v",
           "type": "uint8"
@@ -212,6 +147,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "currentTime",
+          "type": "uint256"
+        },
         {
           "internalType": "uint256",
           "name": "deadline",
@@ -338,43 +278,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": false,
-          "internalType": "contract IDexRouter02",
-          "name": "_dexRouter",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "contract IMiniChef",
-          "name": "_rewarder",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "_rewardsToken",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "_pid",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
-          "type": "uint256"
-        }
-      ],
-      "name": "ChargeVoid",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": true,
           "internalType": "address",
           "name": "sender",
@@ -457,37 +360,6 @@
         }
       ],
       "name": "NewLiquidationIncentive",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "shuttle",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "reinvestor",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "rewardBalance",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "reinvestReward",
-          "type": "uint256"
-        }
-      ],
-      "name": "RechargeVoid",
       "type": "event"
     },
     {
@@ -592,19 +464,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "REINVEST_REWARD",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -698,29 +557,16 @@
         },
         {
           "internalType": "uint256",
-          "name": "accountBorrows",
+          "name": "borrowAmount",
           "type": "uint256"
         }
       ],
-      "name": "canBorrow_J2u",
+      "name": "canBorrow",
       "outputs": [
         {
           "internalType": "bool",
           "name": "",
           "type": "bool"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "chainId",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -729,34 +575,25 @@
     {
       "inputs": [
         {
-          "internalType": "contract IDexRouter02",
-          "name": "_dexRouter",
-          "type": "address"
-        },
-        {
-          "internalType": "contract IMiniChef",
-          "name": "_rewarder",
-          "type": "address"
-        },
-        {
           "internalType": "address",
-          "name": "_rewardsToken",
+          "name": "borrower",
           "type": "address"
         },
         {
           "internalType": "uint256",
-          "name": "_pid",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
+          "name": "redeemAmount",
           "type": "uint256"
         }
       ],
-      "name": "chargeVoid",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "name": "canRedeem",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -856,39 +693,6 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getCygnusVoid",
-      "outputs": [
-        {
-          "internalType": "contract IMiniChef",
-          "name": "_rewarder",
-          "type": "address"
-        },
-        {
-          "internalType": "contract IDexRouter02",
-          "name": "_dexRouter",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "_rewardsToken",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_pid",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_dexSwapFee",
-          "type": "uint256"
-        }
-      ],
       "stateMutability": "view",
       "type": "function"
     },
@@ -908,7 +712,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1064,13 +868,6 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "reinvestRewards_y7b",
-      "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },

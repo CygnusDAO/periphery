@@ -14,6 +14,11 @@
           "internalType": "uint256",
           "name": "_amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
         }
       ],
       "name": "deposit",
@@ -27,9 +32,14 @@
           "internalType": "uint256",
           "name": "_pid",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
         }
       ],
-      "name": "emergencyWithdraw",
+      "name": "harvest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -38,36 +48,16 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "_pid",
+          "name": "",
           "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "_user",
-          "type": "address"
         }
       ],
-      "name": "pendingTokens",
+      "name": "lpToken",
       "outputs": [
         {
-          "internalType": "uint256",
-          "name": "pendingJoe",
-          "type": "uint256"
-        },
-        {
           "internalType": "address",
-          "name": "bonusTokenAddress",
+          "name": "",
           "type": "address"
-        },
-        {
-          "internalType": "string",
-          "name": "bonusTokenSymbol",
-          "type": "string"
-        },
-        {
-          "internalType": "uint256",
-          "name": "pendingBonusToken",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -77,56 +67,16 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "pid",
+          "name": "",
           "type": "uint256"
         }
       ],
-      "name": "poolInfo",
+      "name": "rewarder",
       "outputs": [
         {
           "internalType": "address",
-          "name": "lpToken",
+          "name": "",
           "type": "address"
-        },
-        {
-          "internalType": "uint96",
-          "name": "allocPoint",
-          "type": "uint96"
-        },
-        {
-          "internalType": "uint256",
-          "name": "accJoePerShare",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "accJoePerFactorPerShare",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint64",
-          "name": "lastRewardTimestamp",
-          "type": "uint64"
-        },
-        {
-          "internalType": "contract IRewarder",
-          "name": "rewarder",
-          "type": "address"
-        },
-        {
-          "internalType": "uint32",
-          "name": "veJoeShareBp",
-          "type": "uint32"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalFactor",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalLpSupply",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -136,12 +86,12 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "pid",
+          "name": "",
           "type": "uint256"
         },
         {
           "internalType": "address",
-          "name": "user",
+          "name": "",
           "type": "address"
         }
       ],
@@ -172,6 +122,11 @@
           "internalType": "uint256",
           "name": "_amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
         }
       ],
       "name": "withdraw",

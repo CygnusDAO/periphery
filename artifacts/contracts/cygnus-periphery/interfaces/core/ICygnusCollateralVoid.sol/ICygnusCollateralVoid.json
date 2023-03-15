@@ -34,12 +34,12 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "minRange",
+          "name": "min",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "maxRange",
+          "name": "max",
           "type": "uint256"
         },
         {
@@ -54,12 +54,17 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "mintTokens",
-          "type": "uint256"
+          "internalType": "address",
+          "name": "invalidBorrowable",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "validBorrowable",
+          "type": "address"
         }
       ],
-      "name": "CygnusCollateralVoid__CantMintZero",
+      "name": "CygnusCollateralModel__BorrowableInvalid",
       "type": "error"
     },
     {
@@ -75,23 +80,7 @@
           "type": "address"
         }
       ],
-      "name": "CygnusCollateralVoid__NotNativeTokenSender",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "redeemAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalBalance",
-          "type": "uint256"
-        }
-      ],
-      "name": "CygnusCollateralVoid__RedeemAmountExceedsBalance",
+      "name": "CygnusCollateralModel__BorrowerCantBeAddressZero",
       "type": "error"
     },
     {
@@ -155,6 +144,11 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
           "internalType": "uint8",
           "name": "v",
           "type": "uint8"
@@ -180,6 +174,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "currentTime",
+          "type": "uint256"
+        },
         {
           "internalType": "uint256",
           "name": "deadline",
@@ -328,12 +327,6 @@
           "internalType": "uint256",
           "name": "_pid",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
-          "type": "uint256"
         }
       ],
       "name": "ChargeVoid",
@@ -453,6 +446,12 @@
           "internalType": "uint256",
           "name": "reinvestReward",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "daoReward",
+          "type": "uint256"
         }
       ],
       "name": "RechargeVoid",
@@ -535,6 +534,19 @@
     },
     {
       "inputs": [],
+      "name": "DAO_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "DOMAIN_SEPARATOR",
       "outputs": [
         {
@@ -569,7 +581,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -653,13 +665,53 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "chainId",
-      "outputs": [
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "borrowableToken",
+          "type": "address"
+        },
         {
           "internalType": "uint256",
-          "name": "",
+          "name": "borrowAmount",
           "type": "uint256"
+        }
+      ],
+      "name": "canBorrow",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "borrower",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "redeemAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "canRedeem",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -685,11 +737,6 @@
         {
           "internalType": "uint256",
           "name": "_pid",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
           "type": "uint256"
         }
       ],
@@ -775,6 +822,30 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "borrower",
+          "type": "address"
+        }
+      ],
+      "name": "getAccountLiquidity",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "liquidity",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "shortfall",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "getCygnusVoid",
       "outputs": [
@@ -797,10 +868,37 @@
           "internalType": "uint256",
           "name": "_pid",
           "type": "uint256"
-        },
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "borrower",
+          "type": "address"
+        }
+      ],
+      "name": "getDebtRatio",
+      "outputs": [
         {
           "internalType": "uint256",
-          "name": "_dexSwapFee",
+          "name": "borrowersDebtRatio",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLPTokenPrice",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "lpTokenPrice",
           "type": "uint256"
         }
       ],
@@ -1007,6 +1105,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "smokeDust",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

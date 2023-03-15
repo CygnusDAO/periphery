@@ -114,14 +114,9 @@
               "type": "bool"
             },
             {
-              "internalType": "uint24",
+              "internalType": "uint88",
               "name": "orbiterId",
-              "type": "uint24"
-            },
-            {
-              "internalType": "string",
-              "name": "orbiterName",
-              "type": "string"
+              "type": "uint88"
             },
             {
               "internalType": "contract IAlbireoOrbiter",
@@ -132,6 +127,11 @@
               "internalType": "contract IDenebOrbiter",
               "name": "denebOrbiter",
               "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "orbiterName",
+              "type": "string"
             }
           ],
           "internalType": "struct ICygnusFactory.Orbiter",
@@ -152,14 +152,9 @@
               "type": "bool"
             },
             {
-              "internalType": "uint24",
+              "internalType": "uint88",
               "name": "orbiterId",
-              "type": "uint24"
-            },
-            {
-              "internalType": "string",
-              "name": "orbiterName",
-              "type": "string"
+              "type": "uint88"
             },
             {
               "internalType": "contract IAlbireoOrbiter",
@@ -170,6 +165,11 @@
               "internalType": "contract IDenebOrbiter",
               "name": "denebOrbiter",
               "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "orbiterName",
+              "type": "string"
             }
           ],
           "internalType": "struct ICygnusFactory.Orbiter",
@@ -231,9 +231,9 @@
     {
       "inputs": [
         {
-          "internalType": "uint24",
+          "internalType": "uint256",
           "name": "id",
-          "type": "uint24"
+          "type": "uint256"
         },
         {
           "internalType": "address",
@@ -261,9 +261,9 @@
         },
         {
           "indexed": false,
-          "internalType": "string",
-          "name": "orbitersName",
-          "type": "string"
+          "internalType": "contract IAlbireoOrbiter",
+          "name": "borrowOrbiter",
+          "type": "address"
         },
         {
           "indexed": false,
@@ -273,9 +273,9 @@
         },
         {
           "indexed": false,
-          "internalType": "contract IAlbireoOrbiter",
-          "name": "borrowOrbiter",
-          "type": "address"
+          "internalType": "string",
+          "name": "orbitersName",
+          "type": "string"
         }
       ],
       "name": "InitializeOrbiters",
@@ -342,43 +342,6 @@
       "anonymous": false,
       "inputs": [
         {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "shuttleId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "borrowable",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "collateral",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "usdc",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "lpTokenPair",
-          "type": "address"
-        }
-      ],
-      "name": "NewShuttleLaunched",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
           "indexed": false,
           "internalType": "address",
           "name": "pendingAdmin",
@@ -391,7 +354,7 @@
           "type": "address"
         }
       ],
-      "name": "PendingCygnusAdmin",
+      "name": "NewPendingCygnusAdmin",
       "type": "event"
     },
     {
@@ -410,7 +373,44 @@
           "type": "address"
         }
       ],
-      "name": "PendingDaoReserves",
+      "name": "NewPendingDaoReserves",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "lpTokenPair",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "shuttleId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "orbiterId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "borrowable",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "collateral",
+          "type": "address"
+        }
+      ],
+      "name": "NewShuttleLaunched",
       "type": "event"
     },
     {
@@ -430,12 +430,6 @@
         },
         {
           "indexed": false,
-          "internalType": "string",
-          "name": "orbiterName",
-          "type": "string"
-        },
-        {
-          "indexed": false,
           "internalType": "contract IAlbireoOrbiter",
           "name": "albireoOrbiter",
           "type": "address"
@@ -445,6 +439,12 @@
           "internalType": "contract IDenebOrbiter",
           "name": "denebOrbiter",
           "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "orbiterName",
+          "type": "string"
         }
       ],
       "name": "SwitchOrbiterStatus",
@@ -475,18 +475,13 @@
       "outputs": [
         {
           "internalType": "bool",
-          "name": "active",
+          "name": "status",
           "type": "bool"
         },
         {
-          "internalType": "uint24",
+          "internalType": "uint88",
           "name": "orbiterId",
-          "type": "uint24"
-        },
-        {
-          "internalType": "string",
-          "name": "orbiterName",
-          "type": "string"
+          "type": "uint88"
         },
         {
           "internalType": "contract IAlbireoOrbiter",
@@ -497,6 +492,11 @@
           "internalType": "contract IDenebOrbiter",
           "name": "denebOrbiter",
           "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "orbiterName",
+          "type": "string"
         }
       ],
       "stateMutability": "view",
@@ -518,9 +518,9 @@
           "type": "bool"
         },
         {
-          "internalType": "uint24",
+          "internalType": "uint88",
           "name": "shuttleId",
-          "type": "uint24"
+          "type": "uint88"
         },
         {
           "internalType": "address",
@@ -533,36 +533,9 @@
           "type": "address"
         },
         {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "status",
-              "type": "bool"
-            },
-            {
-              "internalType": "uint24",
-              "name": "orbiterId",
-              "type": "uint24"
-            },
-            {
-              "internalType": "string",
-              "name": "orbiterName",
-              "type": "string"
-            },
-            {
-              "internalType": "contract IAlbireoOrbiter",
-              "name": "albireoOrbiter",
-              "type": "address"
-            },
-            {
-              "internalType": "contract IDenebOrbiter",
-              "name": "denebOrbiter",
-              "type": "address"
-            }
-          ],
-          "internalType": "struct ICygnusFactory.Orbiter",
-          "name": "orbiter",
-          "type": "tuple"
+          "internalType": "uint96",
+          "name": "orbiterId",
+          "type": "uint96"
         }
       ],
       "stateMutability": "view",
@@ -649,14 +622,9 @@
           "type": "bool"
         },
         {
-          "internalType": "uint24",
+          "internalType": "uint88",
           "name": "orbiterId",
-          "type": "uint24"
-        },
-        {
-          "internalType": "string",
-          "name": "orbiterName",
-          "type": "string"
+          "type": "uint88"
         },
         {
           "internalType": "contract IAlbireoOrbiter",
@@ -667,6 +635,11 @@
           "internalType": "contract IDenebOrbiter",
           "name": "denebOrbiter",
           "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "orbiterName",
+          "type": "string"
         }
       ],
       "stateMutability": "view",
@@ -693,9 +666,9 @@
           "type": "bool"
         },
         {
-          "internalType": "uint24",
+          "internalType": "uint88",
           "name": "shuttleId",
-          "type": "uint24"
+          "type": "uint88"
         },
         {
           "internalType": "address",
@@ -708,36 +681,9 @@
           "type": "address"
         },
         {
-          "components": [
-            {
-              "internalType": "bool",
-              "name": "status",
-              "type": "bool"
-            },
-            {
-              "internalType": "uint24",
-              "name": "orbiterId",
-              "type": "uint24"
-            },
-            {
-              "internalType": "string",
-              "name": "orbiterName",
-              "type": "string"
-            },
-            {
-              "internalType": "contract IAlbireoOrbiter",
-              "name": "albireoOrbiter",
-              "type": "address"
-            },
-            {
-              "internalType": "contract IDenebOrbiter",
-              "name": "denebOrbiter",
-              "type": "address"
-            }
-          ],
-          "internalType": "struct ICygnusFactory.Orbiter",
-          "name": "orbiter",
-          "type": "tuple"
+          "internalType": "uint96",
+          "name": "orbiterId",
+          "type": "uint96"
         }
       ],
       "stateMutability": "view",
@@ -899,7 +845,7 @@
     },
     {
       "inputs": [],
-      "name": "usdc",
+      "name": "usd",
       "outputs": [
         {
           "internalType": "address",

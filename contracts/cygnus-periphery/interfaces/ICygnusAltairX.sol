@@ -37,9 +37,9 @@ interface ICygnusAltairX is ICygnusAltairCall {
     error CygnusAltair__InsufficientBurnAmountB(uint256 amount);
 
     /**
-     *  @custom:error InsufficientRedeemAmount Reverts when amount of USDC received is less than the minimum asked
+     *  @custom:error InsufficientRedeemAmount Reverts when amount of USD received is less than the minimum asked
      */
-    error CygnusAltair__InsufficientRedeemAmount(uint256 usdcAmountMin, uint256 amountUsdc);
+    error CygnusAltair__InsufficientRedeemAmount(uint256 usdAmountMin, uint256 usdAmount);
 
     /**
      *  @custom:error MsgSenderNotRouter Reverts when the msg sender is not the router in the leverage function
@@ -71,17 +71,22 @@ interface ICygnusAltairX is ICygnusAltairCall {
      */
     error CygnusAltair__InsufficientLPTokenAmount(uint256 lpAmountMin, uint256 liquidity);
 
+    /**
+     *  @custom:error InsufficientLiquidateUsd Reverts when USD amount received is less than minimum asked while liq.
+     */
+    error CygnusAltair__InsufficientLiquidateUsd(uint256 usdAmountMin, uint256 usdAmount);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @return usdc The address of USDC on this chain
+     *  @return usd The address of USD on this chain
      */
-    function usdc() external view returns (address);
+    function usd() external view returns (address);
 
     /**
-     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USDC address
+     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
      *                   on this chain
      */
     function hangar18() external view returns (address);
@@ -106,13 +111,20 @@ interface ICygnusAltairX is ICygnusAltairCall {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Main function used in Cygnus to borrow USDC
+     *  @notice Main function used in Cygnus to borrow USD
      *  @param borrowable The address of the CygnusBorrow contract
-     *  @param amount Amount of USDC to borrow
+     *  @param amount Amount of USD to borrow
      *  @param recipient The address of the borrower
      *  @param deadline The time by which the transaction must be included to effect the change
+     *  @param permitData Permit data for pool token
      */
-    function borrow(address borrowable, uint256 amount, address recipient, uint256 deadline) external;
+    function borrow(
+        address borrowable,
+        uint256 amount,
+        address recipient,
+        uint256 deadline,
+        bytes calldata permitData
+    ) external;
 
     /**
      *  @notice Main function used in Cygnus to repay borrows
@@ -145,44 +157,48 @@ interface ICygnusAltairX is ICygnusAltairCall {
     ) external returns (uint256 amount, uint256 seizeTokens);
 
     /**
-     *  @notice Function to liquidate a borrower and immediately convert holdings to USDC
+     *  @notice Function to liquidate a borrower and immediately convert holdings to USD
      *  @param lpTokenPair The address of the LP Token that represents the CygLP we are seizing
      *  @param collateral The address of the CygnusCollateral contract
      *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The amount to liquidate
+     *  @param amountMin The min amount of USD to receive
      *  @param borrower The address of the borrower
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      */
-    function liquidateToUsdc(
+    function liquidateToUsd(
         address lpTokenPair,
         address borrowable,
         address collateral,
         uint256 amountMax,
+        uint256 amountMin,
         address borrower,
         address recipient,
         uint256 deadline,
         bytes[] calldata swapData
-    ) external returns (uint256 amountUsdc);
+    ) external returns (uint256 amountUsd);
 
     /**
      *  @notice Main leverage function
      *  @param collateral The address of the collateral of the lending pool
      *  @param borrowable The address of the borrowable of the lending pool
-     *  @param amountUsdcDesired The amount to leverage
+     *  @param amountUsdDesired The amount to leverage
      *  @param amountLPMin The minimum amount of LP Tokens to receive
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param swapData the 1inch swap data to convert USDC to liquidity
+     *  @param swapData the 1inch swap data to convert USD to liquidity
+     *  @param permitData Permit data for borrowable leverage
      */
     function leverage(
         address collateral,
         address borrowable,
-        uint256 amountUsdcDesired,
+        uint256 amountUsdDesired,
         uint256 amountLPMin,
         address recipient,
         uint256 deadline,
-        bytes[] calldata swapData
+        bytes[] calldata swapData,
+        bytes calldata permitData
     ) external;
 
     /**
@@ -190,17 +206,19 @@ interface ICygnusAltairX is ICygnusAltairCall {
      *  @param collateral The address of the collateral of the lending pool
      *  @param borrowable The address of the borrowable of the lending pool
      *  @param redeemTokens The amount to CygLP to deleverage
-     *  @param usdcAmountMin The minimum amount of USDC to receive
+     *  @param usdAmountMin The minimum amount of USD to receive
      *  @param deadline The time by which the transaction must be included to effect the change
-     *  @param swapData the 1inch swap data to convert liquidity to USDC
+     *  @param swapData the 1inch swap data to convert liquidity to USD
+     *  @param permitData Permit data for collateral deleverage
      */
     function deleverage(
         address collateral,
         address borrowable,
         uint256 redeemTokens,
-        uint256 usdcAmountMin,
+        uint256 usdAmountMin,
         uint256 deadline,
-        bytes[] calldata swapData
+        bytes[] calldata swapData,
+        bytes calldata permitData
     ) external;
 
     /**

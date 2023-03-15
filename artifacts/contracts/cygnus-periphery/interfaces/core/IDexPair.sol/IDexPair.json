@@ -181,24 +181,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "getUnderlyingBalances",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "amount0Current",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "amount1Current",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -254,6 +236,34 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount0Out",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1Out",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "swap",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

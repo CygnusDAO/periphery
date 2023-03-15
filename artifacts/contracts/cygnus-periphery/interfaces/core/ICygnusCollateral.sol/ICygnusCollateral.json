@@ -34,12 +34,12 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "minRange",
+          "name": "min",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "maxRange",
+          "name": "max",
           "type": "uint256"
         },
         {
@@ -81,49 +81,6 @@
         }
       ],
       "name": "CygnusCollateralModel__BorrowerCantBeAddressZero",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "mintTokens",
-          "type": "uint256"
-        }
-      ],
-      "name": "CygnusCollateralVoid__CantMintZero",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "origin",
-          "type": "address"
-        }
-      ],
-      "name": "CygnusCollateralVoid__NotNativeTokenSender",
-      "type": "error"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "redeemAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "totalBalance",
-          "type": "uint256"
-        }
-      ],
-      "name": "CygnusCollateralVoid__RedeemAmountExceedsBalance",
       "type": "error"
     },
     {
@@ -182,7 +139,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "redeemableAmount",
+          "name": "shares",
           "type": "uint256"
         }
       ],
@@ -209,12 +166,12 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "userLiquidity",
+          "name": "liquidity",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "userShortfall",
+          "name": "shortfall",
           "type": "uint256"
         }
       ],
@@ -225,7 +182,7 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "redeemAmount",
+          "name": "assets",
           "type": "uint256"
         },
         {
@@ -298,6 +255,11 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
           "internalType": "uint8",
           "name": "v",
           "type": "uint8"
@@ -323,6 +285,11 @@
     },
     {
       "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "currentTime",
+          "type": "uint256"
+        },
         {
           "internalType": "uint256",
           "name": "deadline",
@@ -471,12 +438,6 @@
           "internalType": "uint256",
           "name": "_pid",
           "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
-          "type": "uint256"
         }
       ],
       "name": "ChargeVoid",
@@ -596,6 +557,12 @@
           "internalType": "uint256",
           "name": "reinvestReward",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "daoReward",
+          "type": "uint256"
         }
       ],
       "name": "RechargeVoid",
@@ -678,6 +645,19 @@
     },
     {
       "inputs": [],
+      "name": "DAO_REWARD",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "DOMAIN_SEPARATOR",
       "outputs": [
         {
@@ -712,7 +692,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -809,11 +789,11 @@
         },
         {
           "internalType": "uint256",
-          "name": "accountBorrows",
+          "name": "borrowAmount",
           "type": "uint256"
         }
       ],
-      "name": "canBorrow_J2u",
+      "name": "canBorrow",
       "outputs": [
         {
           "internalType": "bool",
@@ -821,7 +801,7 @@
           "type": "bool"
         }
       ],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -843,19 +823,6 @@
           "internalType": "bool",
           "name": "",
           "type": "bool"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "chainId",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -881,11 +848,6 @@
         {
           "internalType": "uint256",
           "name": "_pid",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_swapFeeFactor",
           "type": "uint256"
         }
       ],
@@ -979,7 +941,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "redeemAmount",
+          "name": "assets",
           "type": "uint256"
         },
         {
@@ -1014,7 +976,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1040,11 +1002,6 @@
           "internalType": "uint256",
           "name": "_pid",
           "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "_dexSwapFee",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -1066,7 +1023,7 @@
           "type": "uint256"
         }
       ],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1311,6 +1268,13 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "smokeDust",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

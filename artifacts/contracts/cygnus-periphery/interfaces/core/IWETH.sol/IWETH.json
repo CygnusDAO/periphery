@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IWAVAX",
-  "sourceName": "contracts/cygnus-periphery/interfaces/core/IWAVAX.sol",
+  "contractName": "IWETH",
+  "sourceName": "contracts/cygnus-periphery/interfaces/core/IWETH.sol",
   "abi": [
     {
       "inputs": [

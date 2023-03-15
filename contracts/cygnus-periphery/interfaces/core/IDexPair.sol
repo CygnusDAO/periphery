@@ -25,6 +25,8 @@ interface IDexPair {
 
     function transfer(address to, uint256 value) external returns (bool);
 
+    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
+
     function transferFrom(
         address from,
         address to,

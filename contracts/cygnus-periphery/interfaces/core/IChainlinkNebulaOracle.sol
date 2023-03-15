@@ -102,7 +102,9 @@ interface IChainlinkNebulaOracle {
      *  @return priceFeedA The address of the Chainlink aggregator used for this LP Token's Token0
      *  @return priceFeedB The address of the Chainlink aggregator used for this LP Token's Token1
      */
-    function getNebula(address lpTokenPair)
+    function getNebula(
+        address lpTokenPair
+    )
         external
         view
         returns (

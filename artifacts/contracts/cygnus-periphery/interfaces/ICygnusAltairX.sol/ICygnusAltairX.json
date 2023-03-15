@@ -45,12 +45,28 @@
       "inputs": [
         {
           "internalType": "uint256",
-          "name": "usdcAmountMin",
+          "name": "usdAmountMin",
           "type": "uint256"
         },
         {
           "internalType": "uint256",
-          "name": "amountUsdc",
+          "name": "usdAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "CygnusAltair__InsufficientLiquidateUsd",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "usdAmountMin",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "usdAmount",
           "type": "uint256"
         }
       ],
@@ -174,10 +190,10 @@
     },
     {
       "inputs": [],
-      "name": "aggregationRouterV4",
+      "name": "aggregationRouterV5",
       "outputs": [
         {
-          "internalType": "contract IAggregationRouterV4",
+          "internalType": "contract IAggregationRouterV5",
           "name": "",
           "type": "address"
         }
@@ -293,7 +309,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "usdcAmountMin",
+          "name": "usdAmountMin",
           "type": "uint256"
         },
         {
@@ -302,14 +318,14 @@
           "type": "uint256"
         },
         {
-          "internalType": "bytes",
-          "name": "permitData",
-          "type": "bytes"
-        },
-        {
           "internalType": "bytes[]",
           "name": "swapData",
           "type": "bytes[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "permitData",
+          "type": "bytes"
         }
       ],
       "name": "deleverage",
@@ -344,7 +360,7 @@
         },
         {
           "internalType": "uint256",
-          "name": "amountUsdcDesired",
+          "name": "amountUsdDesired",
           "type": "uint256"
         },
         {
@@ -363,14 +379,14 @@
           "type": "uint256"
         },
         {
-          "internalType": "bytes",
-          "name": "permitData",
-          "type": "bytes"
-        },
-        {
           "internalType": "bytes[]",
           "name": "swapData",
           "type": "bytes[]"
+        },
+        {
+          "internalType": "bytes",
+          "name": "permitData",
+          "type": "bytes"
         }
       ],
       "name": "leverage",
@@ -445,6 +461,11 @@
           "type": "uint256"
         },
         {
+          "internalType": "uint256",
+          "name": "amountMin",
+          "type": "uint256"
+        },
+        {
           "internalType": "address",
           "name": "borrower",
           "type": "address"
@@ -465,11 +486,11 @@
           "type": "bytes[]"
         }
       ],
-      "name": "liquidateToUsdc",
+      "name": "liquidateToUsd",
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "amountUsdc",
+          "name": "amountUsd",
           "type": "uint256"
         }
       ],
@@ -525,7 +546,7 @@
     },
     {
       "inputs": [],
-      "name": "usdc",
+      "name": "usd",
       "outputs": [
         {
           "internalType": "address",

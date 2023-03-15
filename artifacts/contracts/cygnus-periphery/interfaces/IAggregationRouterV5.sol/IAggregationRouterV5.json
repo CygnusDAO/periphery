@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "IAggregationRouterV4",
-  "sourceName": "contracts/cygnus-periphery/interfaces/IAggregationRouterV4.sol",
+  "contractName": "IAggregationRouterV5",
+  "sourceName": "contracts/cygnus-periphery/interfaces/IAggregationRouterV5.sol",
   "abi": [
     {
       "inputs": [
@@ -46,16 +46,16 @@
               "internalType": "uint256",
               "name": "flags",
               "type": "uint256"
-            },
-            {
-              "internalType": "bytes",
-              "name": "permit",
-              "type": "bytes"
             }
           ],
-          "internalType": "struct IAggregationRouterV4.SwapDescription",
+          "internalType": "struct IAggregationRouterV5.SwapDescription",
           "name": "desc",
           "type": "tuple"
+        },
+        {
+          "internalType": "bytes",
+          "name": "permit",
+          "type": "bytes"
         },
         {
           "internalType": "bytes",
@@ -73,11 +73,6 @@
         {
           "internalType": "uint256",
           "name": "spentAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "gasLeft",
           "type": "uint256"
         }
       ],
