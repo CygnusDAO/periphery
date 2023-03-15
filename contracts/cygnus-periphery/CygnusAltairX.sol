@@ -14,7 +14,6 @@ import {ICygnusFactory} from "./interfaces/core/ICygnusFactory.sol";
 import {ICygnusTerminal} from "./interfaces/core/ICygnusTerminal.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/IAggregationRouterV5.sol";
-import {IDexRouter02} from "./interfaces/core/IDexRouter.sol";
 
 // Libraries
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
