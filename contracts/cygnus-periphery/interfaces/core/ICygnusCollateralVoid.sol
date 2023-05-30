@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Unlicense
-
-pragma solidity >=0.8.4;
+pragma solidity >=0.8.17;
 
 // Dependencies
-import { ICygnusCollateralModel } from "./ICygnusCollateralModel.sol";
-
-// Interfaces
-import { IDexRouter02 } from "./IDexRouter.sol";
-import { IMiniChef } from "./IMiniChef.sol";
+import {ICygnusCollateralModel} from "./ICygnusCollateralModel.sol";
+import {ICygnusHarvester} from "./ICygnusHarvester.sol";
 
 /**
  *  @title ICygnusCollateralVoid
@@ -20,96 +16,109 @@ interface ICygnusCollateralVoid is ICygnusCollateralModel {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error OnlyAccountsAllowed Reverts when the transaction origin and sender are different
+     *  @dev Reverts if tx.origin is different to msg.sender
+     *
+     *  @param sender The sender of the transaction
+     *  @param origin The origin of the transaction
+     *
+     *  @custom:error OnlyAccountsAllowed
      */
-    error CygnusCollateralChef__OnlyEOAAllowed(address sender, address origin);
-
-    /**
-     *  @custom:error InvalidRewardsToken Reverts when initializing the Void twice
-     */
-    error CygnusCollateralChef__VoidAlreadyInitialized(address tokenReward);
+    error CygnusCollateralVoid__OnlyEOAAllowed(address sender, address origin);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @param _dexRouter The address of the router that is used by the DEX (must be UniswapV2 compatible)
-     *  @param _rewarder The address of the rewarder contract
-     *  @param _rewardsToken The address of the token that rewards are paid in
-     *  @param _pid The Pool ID of this LP Token pair in Masterchef's contract
-     *  @custom:event ChargeVoid Logs when the strategy is first initialized
+     *  @dev Logs when the strategy is first initialized or re-approves contracts
+     *
+     *  @param underlying The address of the underlying stablecoin
+     *  @param shuttleId The unique ID of the lending pool
+     *  @param sender The address of the msg.sender (admin)
+     *
+     *  @custom:event ChargeVoid
      */
-    event ChargeVoid(IDexRouter02 _dexRouter, IMiniChef _rewarder, address _rewardsToken, uint256 _pid);
+    event ChargeVoid(address underlying, uint256 shuttleId, address sender);
 
     /**
-     *  @param shuttle The address of this lending pool
+     *  @dev Logs when user reinvests rewards
+     *
      *  @param reinvestor The address of the caller who reinvested reward and received bounty
-     *  @param rewardBalance The amount reinvested
-     *  @param reinvestReward The reward received by the reinvestor
-     *  @param daoReward The reward received by the DAO
-     *  @custom:event RechargeVoid Logs when rewards from the Masterchef/Rewarder are reinvested into more LP Tokens
+     *  @param liquidity The amount of underlying LP received and reinvested
+     *  @param timestamp The timestamp of the reinvest
+     *
+     *  @custom:event RechargeVoid
      */
-    event RechargeVoid(
-        address indexed shuttle,
-        address reinvestor,
-        uint256 rewardBalance,
-        uint256 reinvestReward,
-        uint256 daoReward
-    );
+    event RechargeVoid(address indexed reinvestor, uint256 liquidity, uint256 timestamp);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
-    /**
-     *  @return REINVEST_REWARD The % of rewards paid to the user who reinvested this shuttle's rewards to buy more LP
-     */
-    function REINVEST_REWARD() external pure returns (uint256);
+    /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
-     *  @return DAO_REWARD The % of rewards paid to the DAO from the harvest
+     *  @return harvester The address of the harvester contract
      */
-    function DAO_REWARD() external pure returns (uint256);
+    function harvester() external view returns (ICygnusHarvester);
 
     /**
-     *  @notice Getter for this contract's void values (if activated) showing the rewarder address, pool id, etc.
-     *  @return _rewarder The address of the rewarder
-     *  @return _dexRouter The address of the dex' router used to swap between tokens
-     *  @return _rewardsToken The address of the rewards token from the Dex
-     *  @return _pid The pool ID the collateral's underlying LP Token belongs to in the rewarder
+     *  @return lastReinvest Timestamp of the last reinvest performed by the harvester contract
      */
-    function getCygnusVoid()
-        external
-        view
-        returns (IMiniChef _rewarder, IDexRouter02 _dexRouter, address _rewardsToken, uint256 _pid);
+    function lastReinvest() external view returns (uint256);
+
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
+    /**
+     *  @return rewarder The address of the rewarder contract
+     */
+    function rewarder() external view returns (address);
+
+    /**
+     *  @return rewardToken The address of the main reward token
+     */
+    function rewardToken() external view returns (address);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice 👽
-     *  @notice Initializes the rewarder for this pool
-     *  @param _dexRouter The address of the router that is used by the DEX that owns the liquidity pool
-     *  @param _rewarder The address of the rewarder contract
-     *  @param _rewardsToken The address of the token that rewards are paid in
-     *  @param _pid The Pool ID of this LP Token pair in Masterchef's contract
-     *  @custom:security non-reentrant
+     *  @notice Only EOA can call
+     *  @notice Get the pending rewards manually - helpful to get rewards through static calls
+     *
+     *  @return tokens The addresses of the reward tokens earned by harvesting rewards
+     *  @return amounts The amounts of each token received
+     *
+     *  @custom:security non-reentrant only-eoa
      */
-    function chargeVoid(IDexRouter02 _dexRouter, IMiniChef _rewarder, address _rewardsToken, uint256 _pid) external;
+    function getRewards() external returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
-     *  @notice Reinvests all rewards from the rewarder to buy more LP Tokens to then deposit back into the rewarder
+     *  @notice Only EOA can call
+     *  @notice Reinvests all rewards from the rewarder to buy more USD to then deposit back into the rewarder
      *          This makes totalBalance increase in this contract, increasing the exchangeRate between
-     *          CygnusLP and underlying, thus lowering user's debt ratios
-     *  @custom:security non-reentrant
+     *          CygUSD and underlying and thus lowering utilization rate and borrow rate
+     *
+     *  @custom:security non-reentrant only-eoa
      */
-    function reinvestRewards_y7b() external;
+    function reinvestRewards_y7b(uint256 liquidity) external;
 
     /**
-     *  @notice Converts all the dust we may have from token0/token1 to rewardsToken
-     *  @custom:security non-reentrant
+     *  @notice Only EOA can call
+     *  @notice Charges approvals needed for deposits and withdrawals along with setting rewarders (if any)
+     *
+     *  @custom:security non-reentrant only-eoa
      */
-    function smokeDust() external;
+    function chargeVoid() external;
+
+    /**
+     *  @notice Admin 👽
+     *  @notice Sets the harvester address to harvest and reinvest rewards into more underlying
+     *
+     *  @param _harvester The address of the new harvester contract
+     *
+     *  @custom:security non-reentrant only-admin
+     */
+    function setHarvester(ICygnusHarvester _harvester) external;
 }

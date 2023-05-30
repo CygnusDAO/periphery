@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.4;
+pragma solidity >=0.8.17;
 
 // Interface for interfacting with Wrapped Eth
 interface IWETH {

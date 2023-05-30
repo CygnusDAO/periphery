@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Unlicensed
-pragma solidity >=0.8.4;
+pragma solidity >=0.8.17;
 
 interface ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -26,15 +26,26 @@ interface ICygnusAltairCall {
      *  @notice Will only succeed if: Caller is collateral contract & collateral contract was called by router
      *  @param sender Address of the contract that initialized the redeem transaction (address of the router)
      *  @param redeemAmount The amount to deleverage
-     *  @param _token0 The token0 of this LP Token from CollateralVoid
-     *  @param _token1 The token1 of this LP Token from CollateralVoid
      *  @param data The encoded byte data passed from the CygnusCollateral contract to the router
      */
     function altairRedeem_u91A(
         address sender,
         uint256 redeemAmount,
-        address _token0,
-        address _token1,
         bytes calldata data
+    ) external;
+
+    /**
+     *  @notice Function that is called by the CygnusBorrow contract and decodes data to carry out the liquidation
+     *  @notice Will only succeed if: Caller is borrow contract & Borrow contract was called by router
+     *  @param sender Address of the contract that initialized the borrow transaction (address of the router)
+     *  @param cygLPAmount The cygLP Amount seized
+     *  @param actualRepayAmount The usd amount the contract must have for the liquidate function to finish
+     *  @param data The encoded byte data passed from the CygnusBorrow contract to the router
+     */
+    function altairLiquidate_f2x(
+      address sender,
+      uint256 cygLPAmount,
+      uint256 actualRepayAmount,
+      bytes calldata data
     ) external;
 }

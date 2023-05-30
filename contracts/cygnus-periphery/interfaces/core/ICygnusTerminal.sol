@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.4;
+pragma solidity >=0.8.17;
 
 // Dependencies
-import { IERC20Permit } from "./IERC20Permit.sol";
+import {IERC20Permit} from "./IERC20Permit.sol";
+
+// Interfaces
+import {IHangar18} from "./IHangar18.sol";
+import {IAllowanceTransfer} from "./IAllowanceTransfer.sol";
+import {ICygnusNebulaOracle} from "./ICygnusNebulaOracle.sol";
+import {IAggregationRouterV5} from "./IAggregationRouterV5.sol";
 
 /**
  *  @title The interface for CygnusTerminal which handles pool tokens shared by Collateral and Borrow contracts
@@ -14,27 +20,36 @@ interface ICygnusTerminal is IERC20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error CantMintZeroShares Reverts when attempting to mint zero amount of tokens
+     *  @dev Reverts when attempting to mint zero shares
+     *
+     *  @custom:error CantMintZeroShares
      */
     error CygnusTerminal__CantMintZeroShares();
 
     /**
-     *  @custom:error CantBurnZeroAssets Reverts when attempting to redeem zero amount of tokens
+     *  @dev Reverts when attempting to redeem zero assets
+     *
+     *  @custom:error CantBurnZeroAssets
      */
     error CygnusTerminal__CantRedeemZeroAssets();
 
     /**
-     *  @custom:error RedeemAmountInvalid Reverts when attempting to redeem over amount of tokens
+     *  @dev Reverts when attempting to call Admin-only functions
+     *
+     *  @param sender The address of the msg.sender
+     *  @param admin The address of the hangar18 Admin
+     *
+     *  @custom:error MsgSenderNotAdmin
      */
-    error CygnusTerminal__RedeemAmountInvalid(uint256 assets, uint256 totalBalance);
+    error CygnusTerminal__MsgSenderNotAdmin(address sender, address admin);
 
     /**
-     *  @custom:error MsgSenderNotAdmin Reverts when attempting to call Admin-only functions
-     */
-    error CygnusTerminal__MsgSenderNotAdmin(address sender, address factoryAdmin);
-
-    /**
-     *  @custom:error CantSweepUnderlying Reverts when trying to sweep the underlying asset from this contract
+     *  @dev Reverts when trying to sweep the underlying asset from this contract
+     *
+     *  @param token The addresss of the token trying to sweep
+     *  @param underlying The address of the underlying asset
+     *
+     *  @custom:error CantSweepUnderlying
      */
     error CygnusTerminal__CantSweepUnderlying(address token, address underlying);
 
@@ -43,27 +58,36 @@ interface ICygnusTerminal is IERC20Permit {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
+     *  @dev Logs when totalBalance syncs with the underlying contract's balanceOf.
+     *
      *  @param totalBalance Total balance in terms of the underlying
-     *  @custom:event Sync Logs when total balance of assets we hold is in sync with the underlying contract.
+     *
+     *  @custom:event Sync
      */
     event Sync(uint256 totalBalance);
 
     /**
+     *  @dev Logs when CygLP or CygUSD pool tokens are minted
+     *
      *  @param sender The address of `CygnusAltair` or the sender of the function call
      *  @param recipient Address of the minter
      *  @param assets Amount of assets being deposited
      *  @param shares Amount of pool tokens being minted
-     *  @custom:event Mint Logs when CygLP or CygUSD pool tokens are minted
+     *
+     *  @custom:event Mint
      */
     event Deposit(address indexed sender, address indexed recipient, uint256 assets, uint256 shares);
 
     /**
+     *  @dev Logs when CygLP or CygUSD are redeemed
+     *
      *  @param sender The address of the redeemer of the shares
      *  @param recipient The address of the recipient of assets
      *  @param owner The address of the owner of the pool tokens
      *  @param assets The amount of assets to redeem
      *  @param shares The amount of pool tokens burnt
-     *  @custom:event Redeem Logs when CygLP or CygUSD are redeemed
+     *
+     *  @custom:event Redeem
      */
     event Withdraw(
         address indexed sender,
@@ -80,14 +104,25 @@ interface ICygnusTerminal is IERC20Permit {
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
+     *  @return PERMIT2 Uniswap's Permit2 router. We use the AllowanceTransfer as opposed to SignatureTransfer 
+     *                  to allow router deposits.
+     */
+    function PERMIT2() external view returns (IAllowanceTransfer);
+
+    /**
+     *  @return hangar18 The address of the Cygnus Factory contract used to deploy this shuttle
+     */
+    function hangar18() external view returns (IHangar18);
+
+    /**
      *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
      */
     function underlying() external view returns (address);
 
     /**
-     *  @return hangar18 The address of the Cygnus Factory contract used to deploy this shuttle  🛸
+     *  @return cygnusNebulaOracle The address of the oracle for this lending pool
      */
-    function hangar18() external view returns (address);
+    function cygnusNebulaOracle() external view returns (ICygnusNebulaOracle);
 
     /**
      *  @return shuttleId The ID of this shuttle (shared by Collateral and Borrow)
@@ -100,12 +135,7 @@ interface ICygnusTerminal is IERC20Permit {
     function totalBalance() external view returns (uint256);
 
     /**
-     *  @return exchangeRate The ratio which 1 pool token can be redeemed for underlying amount
-     *  @notice There are two exchange rates: 1 for collateral and 1 for borrow contracts. The borrow contract
-     *          exchangeRate function is used to mint DAO reserves, as such we keep this as a non-view function,
-     *          and instead use the `exchangeRateStored` state variable to keep track of the exchange rate.
-     *          For the collateral exchange rate, we override this function in CygnusCollateralControl and mark
-     *          it as view.
+     *  @return exchangeRate The ratio which 1 pool token can be redeemed for underlying amount.
      */
     function exchangeRate() external returns (uint256);
 
@@ -116,29 +146,52 @@ interface ICygnusTerminal is IERC20Permit {
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Deposits assets and mints shares to recipient
-     *  @param assets The amount of assets to deposit
-     *  @param recipient Address of the minter
-     *  @return shares Amount of shares minted
+     *  @notice This function must be called with the `approve` method of the underlying asset token contract for
+     *          the `assets` amount on behalf of the sender before calling this function.
+     *  @notice Implements the deposit of the underlying asset into the Cygnus Vault pool. This function transfers
+     *          the underlying assets from the sender to this contract and mints a corresponding amount of Cygnus
+     *          Vault shares to the recipient. A deposit fee may be charged by the strategy, which is deducted from
+     *          the deposited assets.
+     *
+     *  @dev If the deposit amount is less than or equal to 0, this function will revert.
+     *
+     *  @param assets Amount of the underlying asset to deposit.
+     *  @param recipient Address that will receive the corresponding amount of shares.
+     *  @return shares Amount of Cygnus Vault shares minted and transferred to the `recipient`.
+     *
      *  @custom:security non-reentrant
      */
-    function deposit(uint256 assets, address recipient) external returns (uint256 shares);
+    function deposit(
+        uint256 assets,
+        address recipient,
+        IAllowanceTransfer.PermitSingle calldata _permit,
+        bytes calldata _signature
+    ) external returns (uint256 shares);
 
     /**
-     *  @notice Redeems shares and returns assets to recipient
-     *  @param shares The amount of shares to redeem for assets
-     *  @param recipient The address of the redeemer
-     *  @param owner The address of the account who owns the shares
-     *  @return assets Amount of assets returned to the user
+     *  @notice Redeems the specified amount of `shares` for the underlying asset and transfers it to `recipient`.
+     *
+     *  @dev shares must be greater than 0.
+     *  @dev If the function is called by someone other than `owner`, then the function will reduce the allowance
+     *       granted to the caller by `shares`.
+     *
+     *  @param shares The number of shares to redeem for the underlying asset.
+     *  @param recipient The address that will receive the underlying asset.
+     *  @param owner The address that owns the shares.
+     *
+     *  @return assets The amount of underlying assets received by the `recipient`.
+     *
      *  @custom:security non-reentrant
      */
     function redeem(uint256 shares, address recipient, address owner) external returns (uint256 assets);
 
     /**
-     *  @notice 👽
+     *  @notice Admin 👽
      *  @notice Recovers any ERC20 token accidentally sent to this contract, sent to msg.sender
+     *
      *  @param token The address of the token we are recovering
-     *  @custom:security non-reentrant
+     *
+     *  @custom:security non-reentrant only-admin
      */
     function sweepToken(address token) external;
 }

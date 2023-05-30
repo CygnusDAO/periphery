@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.4;
+pragma solidity >=0.8.17;
 
 // Dependencies
-import { ICygnusTerminal } from "./ICygnusTerminal.sol";
+import {ICygnusTerminal} from "./ICygnusTerminal.sol";
 
 /**
- *  @title ICygnusBorrowControl Interface for the control of borrow contracts (interest rate params, reserves, etc.)
+ *  @title  ICygnusBorrowControl Interface for the control of borrow contracts (interest rate params, reserves, etc.)
+ *  @notice Admin contract for Cygnus Borrow contract 👽
  */
 interface ICygnusBorrowControl is ICygnusTerminal {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -13,39 +14,49 @@ interface ICygnusBorrowControl is ICygnusTerminal {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @custom:error ParameterNotInRange Reverts when the value is below min or above max
+     *  @dev Reverts when attempting to set a parameter outside the min/max ranges allowed in the Control contract
+     *
+     *  @param min The minimum allowed value.
+     *  @param max The maximum allowed value.
+     *  @param value The actual value provided.
+     *
+     *  @custom:error ParameterNotInRange
      */
     error CygnusBorrowControl__ParameterNotInRange(uint256 min, uint256 max, uint256 value);
-
-    /**
-     *  @custom:error BorrowTrackerAlreadySet Reverts when the new borrow tracker is the same as current
-     */
-    error CygnusBorrowControl__BorrowTrackerAlreadySet(address currentTracker, address newTracker);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
+     *  @dev Logs when a new contract is set that rewards users in CYG
+     *
      *  @param oldBorrowRewarder The address of the borrow rewarder up until this point used for CYG distribution
      *  @param newBorrowRewarder The address of the new borrow rewarder
-     *  @custom:event NewCygnusBorrowRewarder Logs when a new borrow tracker is set set by admins
+     *
+     *  @custom:event NewCygnusBorrowRewarder
      */
     event NewCygnusBorrowRewarder(address oldBorrowRewarder, address newBorrowRewarder);
 
     /**
+     *  @dev Logs when a new reserve factory is set by admin
+     *
      *  @param oldReserveFactor The reserve factor used in this shuttle until this point
      *  @param newReserveFactor The new reserve factor set
-     *  @custom:event NewReserveFactor Logs when a new reserve factor is set set by admins
+     *
+     *  @custom:event NewReserveFactor
      */
     event NewReserveFactor(uint256 oldReserveFactor, uint256 newReserveFactor);
 
     /**
+     *  @dev Logs when a new interest rate curve is set for this shuttle
+     *
      *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
      *  @param kinkMultiplier_ The increase to multiplier per year once kink utilization is reached
      *  @param kinkUtilizationRate_ The rate at which the jump interest rate takes effect
-     *  custom:event NewInterestRateParameters Longs when a new interest rate model is set
+     *
+     *  custom:event NewInterestRateParameters
      */
     event NewInterestRateParameters(
         uint256 baseRatePerYear,
@@ -75,16 +86,6 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     // ───────────────────────────── Current pool rates
 
     /**
-     *  @return exchangeRateStored The current exchange rate of tokens
-     */
-    function exchangeRateStored() external view returns (uint256);
-
-    /**
-     *  @return reserveFactor Percentage of interest that is routed to this market's Reserve Pool
-     */
-    function reserveFactor() external view returns (uint256);
-
-    /**
      *  @return baseRatePerSecond The interest rate for this pool when utilization is 0 divided by seconds in a year
      */
     function baseRatePerSecond() external view returns (uint256);
@@ -109,6 +110,16 @@ interface ICygnusBorrowControl is ICygnusTerminal {
      */
     function kinkMultiplier() external view returns (uint256);
 
+    /**
+     *  @return reserveFactor Percentage of interest that is routed to this market's Reserve Pool
+     */
+    function reserveFactor() external view returns (uint256);
+
+    /**
+     *  @return exchangeRateStored The exchange rate used to mint reserves
+     */
+    function exchangeRateStored() external view returns (uint256);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -116,28 +127,35 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @notice 👽
+     *  @notice Admin 👽
      *  @notice Updates the borrow rewarder contract
+     *
      *  @param newBorrowRewarder The address of the new CYG Borrow rewarder
-     *  @custom:security non-reentrant
+     *
+     *  @custom:security only-admin
      */
     function setCygnusBorrowRewarder(address newBorrowRewarder) external;
 
     /**
-     *  @notice 👽
+     *  @notice Admin 👽
      *  @notice Updates the reserve factor
+     *
      *  @param newReserveFactor The new reserve factor for this shuttle
-     *  @custom:security non-reentrant
+     *
+     *  @custom:security only-admin
      */
     function setReserveFactor(uint256 newReserveFactor) external;
 
     /**
-     *  @notice 👽
+     *  @notice Admin 👽
      *  @notice Internal function to update the parameters of the interest rate model
+     *
      *  @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      *  @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
      *  @param kinkMultiplier_ The increase to farmApy once kink utilization is reached
      *  @param kinkUtilizationRate_ The new utilization rate
+     *
+     *  @custom:security only-admin
      */
     function setInterestRateModel(
         uint256 baseRatePerYear,
