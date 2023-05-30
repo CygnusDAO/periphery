@@ -3,8 +3,8 @@
 
 | Update                             | Date |
 |-|-|
-|Update: Upgraded to 1inch V5 router | (19/01/2023) |
-|Update: Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023)|
+|Upgraded to 1inch V5 router | (19/01/2023) |
+|Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023)|
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
