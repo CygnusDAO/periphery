@@ -15,11 +15,19 @@ contract. Each proceeding call builds on top of the previous one.
 During the leverage functionality the router borrows USD from the borrowable arm contract, and then
 converts it to liquidity. Before the leverage or de-leverage function call,
 we calculate quotes to estimate what the amount will be during each swap stage allowing users to choose the best
-quote from the DEX aggregators.
+quote from the DEX aggregators. See the function argument `DexAggregator dexAggregator` for leverage, deleverage and flash liquidate below.
+
 
  <hr/>
+ 
+<div style="display: flex">
+  
+</div>
 
 **1Inch Integration**
+
+
+  <img src="https://assets-global.website-files.com/606f63778ec431ec1b930f1f/60d10d967f7d15d8fba352a9_1inch.png" alt="1Inch">
 
 ```solidity
 /**
@@ -51,6 +59,8 @@ function _swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal 
 <hr />
 
 **Paraswap Integration**
+
+<img src="https://i.ytimg.com/vi/RuFCtt1Kc9Y/maxresdefault.jpg" alt="Paraswap">
 
 ```solidity
 /**
