@@ -15,67 +15,66 @@ interface ICygnusCollateral is ICygnusCollateralVoid {
     /**
      *  @dev Reverts when the user doesn't have enough liquidity to redeem
      *
-     *  @param from The address of the user attempting to redeem
-     *  @param to The address to which the redeemed tokens will be sent
-     *  @param value The amount of tokens to be redeemed
-     *
      *  @custom:error InsufficientLiquidity
      */
-    error CygnusCollateral__InsufficientLiquidity(address from, address to, uint256 value);
+    error CygnusCollateral__InsufficientLiquidity();
 
     /**
      *  @dev Reverts when the msg.sender of the liquidation is not this contract`s borrowable
      *
-     *  @param sender The address of the message sender
-     *  @param borrowable The address of the borrower
-     *
      *  @custom:error MsgSenderNotBorrowable
      */
-    error CygnusCollateral__MsgSenderNotBorrowable(address sender, address borrowable);
+    error CygnusCollateral__MsgSenderNotBorrowable();
 
     /**
      *  @dev Reverts when the repayAmount in a liquidation is 0
      *
-     *  @custom:error CantLiquidateZero 
+     *  @custom:error CantLiquidateZero
      */
     error CygnusCollateral__CantLiquidateZero();
 
     /**
      *  @dev Reverts when trying to redeem 0 tokens
      *
-     *  @custom:error CantRedeemZero 
+     *  @custom:error CantRedeemZero
      */
     error CygnusCollateral__CantRedeemZero();
 
     /**
      * @dev Reverts when liquidating an account that has no shortfall
      *
-     * @param liquidity The amount of liquidity in the account
-     * @param shortfall The shortfall amount of the account
-     *
      * @custom:error NotLiquidatable
      */
-    error CygnusCollateral__NotLiquidatable(uint256 liquidity, uint256 shortfall);
+    error CygnusCollateral__NotLiquidatable();
 
     /**
      *  @dev Reverts when redeeming more than pool's totalBalance
      *
-     *  @param assets The amount of assets in the pool
-     *  @param totalBalance The total balance of the pool
-     *
      *  @custom:error RedeemAmountInvalid
      */
-    error CygnusCollateral__RedeemAmountInvalid(uint256 assets, uint256 totalBalance);
+    error CygnusCollateral__RedeemAmountInvalid();
 
     /**
      *  @dev Reverts when redeeming more shares than CygLP in this contract
      *
-     *  @param cygLPTokens The amount of CygLP tokens in this contract
-     *  @param shares The amount of shares being redeemed
-     *
      *  @custom:error InsufficientRedeemAmount
      */
-    error CygnusCollateral__InsufficientRedeemAmount(uint256 cygLPTokens, uint256 shares);
+    error CygnusCollateral__InsufficientCygLPReceived();
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            2. CUSTOM EVENTS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Logs when collateral is seized from the borrower and sent to the liquidator
+     *
+     *  @param liquidator The address of the liquidator
+     *  @param borrower The address of the borrower being liquidated
+     *  @param cygLPAmount The amount of CygLP seized and sent to the liquidator
+     *  @param daoFee The amount of CygLP sent to the DAO Reserves
+     *  @param seized The total amount of CygLP seized from the borrower
+     */
+    event SeizeCygLP(address indexed liquidator, address indexed borrower, uint256 cygLPAmount, uint256 daoFee, uint256 seized);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -95,11 +94,7 @@ interface ICygnusCollateral is ICygnusCollateralVoid {
      *
      *  @return cygLPAmount The amount of CygLP seized
      */
-    function seizeCygLP(
-        address liquidator,
-        address borrower,
-        uint256 repayAmount
-    ) external returns (uint256 cygLPAmount);
+    function seizeCygLP(address liquidator, address borrower, uint256 repayAmount) external returns (uint256 cygLPAmount);
 
     /**
      *  @notice Flash redeems the underlying LP Token

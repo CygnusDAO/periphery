@@ -3,6 +3,8 @@ pragma solidity >=0.8.17;
 
 // Dependencies
 import {ICygnusCollateralModel} from "./ICygnusCollateralModel.sol";
+
+// Harvester
 import {ICygnusHarvester} from "./ICygnusHarvester.sol";
 
 /**
@@ -16,14 +18,11 @@ interface ICygnusCollateralVoid is ICygnusCollateralModel {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @dev Reverts if tx.origin is different to msg.sender
+     *  @dev Reverts if msg.sender is not the harvester
      *
-     *  @param sender The sender of the transaction
-     *  @param origin The origin of the transaction
-     *
-     *  @custom:error OnlyAccountsAllowed
+     *  @custom:error OnlyHarvesterAllowed
      */
-    error CygnusCollateralVoid__OnlyEOAAllowed(address sender, address origin);
+    error CygnusCollateralVoid__OnlyHarvesterAllowed();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -50,6 +49,16 @@ interface ICygnusCollateralVoid is ICygnusCollateralModel {
      *  @custom:event RechargeVoid
      */
     event RechargeVoid(address indexed reinvestor, uint256 liquidity, uint256 timestamp);
+
+    /**
+     *  @dev Logs when admin sets a new harvester to reinvest rewards
+     *
+     *  @param oldHarvester The address of the old harvester
+     *  @param newHarvester The address of the new harvester
+     *
+     *  @custom:event NewHarvester
+     */
+    event NewHarvester(ICygnusHarvester oldHarvester, ICygnusHarvester newHarvester);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -83,34 +92,33 @@ interface ICygnusCollateralVoid is ICygnusCollateralModel {
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
     /**
-     *  @notice Only EOA can call
+     *  @notice Can be called by anyone. Charges approvals needed for deposits and withdrawals, and any other function
+     *          needed to get the vault started. ie, setting a pool ID from a MasterChef, a gauge, etc.
+     */
+    function chargeVoid() external;
+
+    /**
      *  @notice Get the pending rewards manually - helpful to get rewards through static calls
      *
      *  @return tokens The addresses of the reward tokens earned by harvesting rewards
      *  @return amounts The amounts of each token received
      *
-     *  @custom:security non-reentrant only-eoa
+     *  @custom:security non-reentrant
      */
     function getRewards() external returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
-     *  @notice Only EOA can call
-     *  @notice Reinvests all rewards from the rewarder to buy more USD to then deposit back into the rewarder
+     *  @notice Only the harvester can reinvest
+     *  @notice Reinvests all rewards from the rewarder to buy more LP to then deposit back into the rewarder
      *          This makes totalBalance increase in this contract, increasing the exchangeRate between
-     *          CygUSD and underlying and thus lowering utilization rate and borrow rate
+     *          CygLP and underlying and thus lowering debt ratio for all borrwers in the pool as they own more LP.
      *
-     *  @custom:security non-reentrant only-eoa
+     *  @custom:security only-harvester
      */
     function reinvestRewards_y7b(uint256 liquidity) external;
-
-    /**
-     *  @notice Only EOA can call
-     *  @notice Charges approvals needed for deposits and withdrawals along with setting rewarders (if any)
-     *
-     *  @custom:security non-reentrant only-eoa
-     */
-    function chargeVoid() external;
 
     /**
      *  @notice Admin 👽
@@ -118,7 +126,7 @@ interface ICygnusCollateralVoid is ICygnusCollateralModel {
      *
      *  @param _harvester The address of the new harvester contract
      *
-     *  @custom:security non-reentrant only-admin
+     *  @custom:security only-admin
      */
     function setHarvester(ICygnusHarvester _harvester) external;
 }

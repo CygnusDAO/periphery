@@ -1,22 +1,21 @@
 # **Cygnus Periphery Contract**
 
-
-| Update                             | Date |
-|-|-|
-|Upgraded to 1inch V5 router | (19/01/2023) |
-|Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023)|
+| Update                                                         | Date         |
+| -------------------------------------------------------------- | ------------ |
+| Upgraded to 1inch V5 router                                    | (19/01/2023) |
+| Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023) |
+| Integrated with Paraswap's router                              | (15/06/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
-This router is integrated with <a href="https://1inch.io">1inch</a> using their latest Aggregation Router V5, and it works mostly
+This router is integrated with <a href="https://1inch.io">1inch</a> and <a href="https://www.paraswap.io/">Paraswap</a> using their latest routers, and it works mostly
 on-chain. The queries are estimated before the first call off-chain, following the same logic for each swap as this
-contract. Each proceeding call builds on top of the previous one, so we can estimate the amounts using the `returnAmount` of each API call. At the time of the swap, the router updates the amount of srcToken, in case it's off slightly, but keeps the same executioner and executioner data intact.
+contract. Each proceeding call builds on top of the previous one.
 
 During the leverage functionality the router borrows USD from the borrowable arm contract, and then
-converts it to liquidity tokens. Before the leverage or de-leverage function call,
-we calculate quotes to estimate what the amount will be during each swap stage, and we use the data
-passed from each step and override the amount with the current balance of this contract (both amounts
-should be the same, or in some cases could be off by a very small amount).
+converts it to liquidity. Before the leverage or de-leverage function call,
+we calculate quotes to estimate what the amount will be during each swap stage allowing users to choose the best
+quote from the DEX aggregators.
 
  <hr/>
 
@@ -30,8 +29,9 @@ should be the same, or in some cases could be off by a very small amount).
  *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
  *  @param swapData The data from 1inch `swap` query
  *  @param updatedAmount The balanceOf this contract`s srcToken
+ *  @return amountOut The amount received of destination token
  */
-function swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal virtual returns (uint256 amountOut) {
+function _swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal returns (uint256 amountOut) {
     // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
     (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi
         .decode(swapData, (address, IAggregationRouterV5.SwapDescription, bytes, bytes));
@@ -40,11 +40,50 @@ function swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal v
     if (desc.amount != updatedAmount) desc.amount = updatedAmount;
 
     // Approve 1Inch Router in `srcToken` if necessary
-    approveContract(address(desc.srcToken), address(aggregationRouterV5), desc.amount);
+    _approveToken(address(desc.srcToken), address(ONE_INCH_ROUTER_V5), desc.amount);
 
     // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
     // of the leverage/deleverage functions anyways
-    (amountOut, ) = aggregationRouterV5.swap(IAggregationExecutor(caller), desc, permit, data);
+    (amountOut, ) = IAggregationRouterV5(ONE_INCH_ROUTER_V5).swap(IAggregationExecutor(caller), desc, permit, data);
+}
+```
+
+<hr />
+
+**Paraswap Integration**
+
+```solidity
+/**
+ *  @notice Creates the swap with Paraswap's Augustus Swapper. We don't update the amount, instead we clean dust at the end.
+ *          This is because the data is of complex type (Path[] path). We pass the token being swapped and the amount being
+ *          swapped to approve the transfer proxy (which is set on augustus wrapped via `getTokenTransferProxy`).
+ *  @param swapData The data from Paraswap's `transaction` query
+ *  @param srcToken The token being swapped
+ *  @param fromAmount The amount of `srcToken` being swapped
+ *  @return amountOut The amount received of destination token
+ */
+function _swapTokensParaswap(
+    bytes memory swapData,
+    address srcToken,
+    uint256 fromAmount
+) private returns (uint256 amountOut) {
+    // Paraswap's token proxy to approve in srcToken
+    address paraswapTransferProxy = IAugustusSwapper(PARASWAP_AUGUSTUS_SWAPPER_V5).getTokenTransferProxy();
+
+    // Approve Paraswap's transfer proxy in `srcToken` if necessary
+    _approveToken(srcToken, paraswapTransferProxy, fromAmount);
+
+    // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+    (bool success, bytes memory resultData) = PARASWAP_AUGUSTUS_SWAPPER_V5.call{ value: msg.value }(swapData);
+
+    /// @custom:error ParaswapTransactionFailed
+    if (!success) revert CygnusAltair__ParaswapTransactionFailed();
+
+    // Return amount received - This is off by some very small amount from the actual contract balance.
+    // We shouldn't use it directly. Instead, query contract balance of token received
+    assembly {
+        amountOut := mload(add(resultData, 32))
+    }
 }
 ```
 
@@ -54,24 +93,31 @@ function swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal v
 
 ```solidity
 /**
- *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsd` of USD
- *  @notice Maximum 2 swaps
- *  @param lpTokenPair The address of the liquidity Token
- *  @param token0 The address of token0 from the liquidity Token
- *  @param token1 The address of token1 from the liquidity Token
- *  @param amountUsd The amount of USDC to convert into liquidity
- *  @param swapData Bytes array consisting of 1inch API swap data
+ *  @notice Main leverage function
+ *  @param lpTokenPair The address of the LP Token
+ *  @param collateral The address of the collateral of the lending pool
+ *  @param borrowable The address of the borrowable of the lending pool
+ *  @param usdAmount The amount to leverage
+ *  @param lpAmountMin The minimum amount of LP Tokens to receive
+ *  @param deadline The time by which the transaction must be included to effect the change
+ *  @param permitData Permit data for borrowable leverage
+ *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
+ *  @param swapData the 1inch swap data to convert USD to liquidity
  */
-function convertUsdToLiquidity(
+function leverage(
     address lpTokenPair,
-    address token0,
-    address token1,
-    uint256 amountUsd,
-    bytes[] memory swapData
-) internal virtual returns (uint256 liquidity);
+    address collateral,
+    address borrowable,
+    uint256 usdAmount,
+    uint256 lpAmountMin,
+    uint256 deadline,
+    bytes calldata permitData,
+    DexAggregator dexAggregator,
+    bytes[] calldata swapData
+) external;
 ```
 
-The `CygnusBorrow` contract will send `amountUsd` to the router. The router then converts 50% of USDC to the `CygnusBorrow`'s collateral (a liquidity token) token0 and 50% to token1. It then mints the liquidity Token, sends it to the collateral contract and mints CygLP to the borrower.
+The `leverage` function will call The `CygnusBorrow` contract and this will send `amountUsd` back to the router of USDC. The router then converts the USDC borrowed into liquidity. It then mints the liquidity Token, sends it to the collateral contract and mints CygLP to the borrower.
 
 <hr/>
 
@@ -79,25 +125,31 @@ The `CygnusBorrow` contract will send `amountUsd` to the router. The router then
 
 ```solidity
 /**
- *  @notice This function is called after burning or redeeming (or a similar function) a liquidity token and receiving
- *          amountTokenA of token0 and amountTokenB of token1.
- *  @notice Maximum 2 swaps
- *  @param amountTokenA The amount of token A to convert to USD
- *  @param amountTokenB The amount of token B to convert to USD
- *  @param token0 The address of token0 from the liquidity Token pair
- *  @param token1 The address of token1 from the liquidity Token pair
- *  @param swapData Bytes array consisting of 1inch API swap data
+ *  @notice Main deleverage function
+ *  @param lpTokenPair The address of the LP Token
+ *  @param collateral The address of the collateral of the lending pool
+ *  @param borrowable The address of the borrowable of the lending pool
+ *  @param cygLPAmount The amount to CygLP to deleverage
+ *  @param usdAmountMin The minimum amount of USD to receive
+ *  @param deadline The time by which the transaction must be included to effect the change
+ *  @param permitData Permit data for collateral deleverage
+ *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
+ *  @param swapData the 1inch swap data to convert liquidity to USD
  */
-function convertLiquidityToUsd(
-    uint256 amountTokenA,
-    uint256 amountTokenB,
-    address token0,
-    address token1,
-    bytes[] memory swapData
-) private returns (uint256);
+function deleverage(
+    address lpTokenPair,
+    address collateral,
+    address borrowable,
+    uint256 cygLPAmount,
+    uint256 usdAmountMin,
+    uint256 deadline,
+    bytes calldata permitData,
+    DexAggregator dexAggregator,
+    bytes[] calldata swapData
+) external;
 ```
 
-The `CygnusCollateral` contract will send an amount of liquidity tokens to the router. The router then burns the liquidity token (or the DEX' function to redeem the liquidity token for the assets), and receives the assets (for example amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to USD, sending it back to the borrowable contract.
+The `deleverage` function will call the `CygnusCollateral` contract and this will flash redeem liquidity tokens to the router. The router then burns the liquidity token (or the DEX' function to redeem the liquidity token for the assets), and receives the assets (for example amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to USDC, repaying by sending it back to the borrowable contract and sending left over balance to the borrower.
 
 <hr />
 
@@ -128,11 +180,13 @@ Simple `liquidate` function which sends USD from the liquidator back to the borr
 
 ```solidity
 /**
+ *  @notice Main function to flash liquidate borrows. Ie, liquidating a user without needing to have USD
  *  @param borrowable The address of the CygnusBorrow contract
  *  @param amountMax The maximum amount to liquidate
  *  @param borrower The address of the borrower
  *  @param recipient The address of the recipient
  *  @param deadline The time by which the transaction must be included to effect the change
+ *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
  *  @param swapData Calldata to swap
  */
 function flashLiquidate(
@@ -142,10 +196,11 @@ function flashLiquidate(
     address borrower,
     address recipient,
     uint256 deadline,
+    DexAggregator dexAggregator,
     bytes[] calldata swapData
 ) external returns (uint256 amount);
 ```
 
-This function will liquidate any borrower who has a position in shortfall without needing to send the USD first to the borrowable pool. The caller must first build the swapData off-chain using this router's `getAssetsForShares(shares)`. The function will return an array of `tokens` and `amounts` which are the amounts of assets we would get back for burning or redeeming `shares`. We can then build the swap data easily by swapping each token amount to USD.
+This function will liquidate any borrower who has a position in shortfall without the liquidator needing to have any USDC. The caller must first build the swapData off-chain using this router's `getAssetsForShares(shares)`. The function will return an array of `tokens` and `amounts` which are the amounts of assets we would get back for burning or redeeming `shares`. We can then build the swap data easily by swapping each token amount to USD.
 
 The function will then call the `liquidate()` function on the `CygnusBorrow` contract with the data for the swaps. The CygnusBorrow contract will seize tokens, pass the tokens seized and swapdata back to this contract and the liquidation will take place, sending back the amount repaid of usd to the borrowable and leaving the difference to the borrower (the liquidation incentive).

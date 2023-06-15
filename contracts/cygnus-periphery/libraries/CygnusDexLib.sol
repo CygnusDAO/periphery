@@ -15,10 +15,39 @@ library CygnusDexLib {
      */
     function optimalDepositA(uint256 amountA, uint256 reservesA, uint256 swapFee) internal pure returns (uint256) {
         // Calculate with dex swap fee
-        uint256 a = (1000 + swapFee) * reservesA;
-        uint256 b = amountA * 1000 * reservesA * 4 * swapFee;
+        uint256 _swapFee = 10000 - swapFee;
+        uint256 a = (10000 + _swapFee) * reservesA;
+        uint256 b = amountA * 10000 * reservesA * 4 * _swapFee;
         uint256 c = FixedPointMathLib.sqrt(a * a + b);
-        uint256 d = 2 * swapFee;
+        uint256 d = 2 * _swapFee;
         return (c - a) / d;
+    }
+
+    function _optimalDeposit(
+        uint256 _amountA,
+        uint256 _amountB,
+        uint256 _reserveA,
+        uint256 _reserveB,
+        uint256 _decimalsA,
+        uint256 _decimalsB
+    ) internal pure returns (uint256) {
+        uint256 num;
+        uint256 den;
+        {
+            uint256 a = _amountA.divWad(_decimalsA);
+            uint256 b = _amountB.divWad(_decimalsB);
+            uint256 x = _reserveA.divWad(_decimalsA);
+            uint256 y = _reserveB.divWad(_decimalsB);
+            uint256 p;
+            {
+                uint256 x2 = x.mulWad(x);
+                uint256 y2 = y.mulWad(y);
+                p = (y * ((x2 * 3 + y2).divWad(y2 * 3 + x2))) / x;
+            }
+            num = a * y - b * x;
+            den = (a + x).mulWad(p) + y + b;
+        }
+
+        return ((num / den) * _decimalsA) / 1e18;
     }
 }

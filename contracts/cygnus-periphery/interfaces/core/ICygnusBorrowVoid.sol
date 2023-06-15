@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Unlicense
-
 pragma solidity >=0.8.17;
 
 // Dependencies
 import {ICygnusBorrowModel} from "./ICygnusBorrowModel.sol";
 
-// Stargate
+// Harvester
 import {ICygnusHarvester} from "./ICygnusHarvester.sol";
 
 /**
- *  @title ICygnusBorrowVoid
+ *  @title  ICygnusBorrowVoid
+ *  @notice Interface for `CygnusBorrowVoid` which is in charge of connecting the stablecoin Token with
+ *          a specified strategy (for example connect to a rewarder contract to stake the USDC, etc.)
  */
 interface ICygnusBorrowVoid is ICygnusBorrowModel {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -17,24 +18,19 @@ interface ICygnusBorrowVoid is ICygnusBorrowModel {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @dev Reverts if tx.origin is different to msg.sender
+     *  @dev Reverts if msg.sender is not the harvester
      *
-     *  @param sender The sender of the transaction
-     *  @param origin The origin of the transaction
-     *
-     *  @custom:error OnlyAccountsAllowed
+     *  @custom:error OnlyHarvesterAllowed
      */
-    error CygnusBorrowVoid__OnlyEOAAllowed(address sender, address origin);
+    error CygnusBorrowVoid__OnlyHarvesterAllowed();
 
     /**
      *  @dev Strategy specific error
      *  @dev Reverts if there was a mint or redeem error on the cToken
      *
-     *  @param errorcode The errorcode given by the cToken
-     *
      *  @custom:error CTokenError
      */
-    error CygnusBorrowVoid__CTokenError(uint256 errorcode);
+    error CygnusBorrowVoid__CTokenError();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -62,6 +58,16 @@ interface ICygnusBorrowVoid is ICygnusBorrowModel {
      */
     event RechargeVoid(address indexed reinvestor, uint256 liquidity, uint256 timestamp);
 
+    /**
+     *  @dev Logs when admin sets a new harvester to reinvest rewards
+     *
+     *  @param oldHarvester The address of the old harvester
+     *  @param newHarvester The address of the new harvester
+     *
+     *  @custom:event NewHarvester
+     */
+    event NewHarvester(ICygnusHarvester oldHarvester, ICygnusHarvester newHarvester);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -77,7 +83,6 @@ interface ICygnusBorrowVoid is ICygnusBorrowModel {
      *  @return lastReinvest Timestamp of the last reinvest performed by the harvester contract
      */
     function lastReinvest() external view returns (uint256);
-
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
@@ -98,33 +103,30 @@ interface ICygnusBorrowVoid is ICygnusBorrowModel {
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Only EOA can call
+     *  @notice Can be called by anyone. Charges approvals needed for deposits and withdrawals, and any other function
+     *          needed to get the vault started. ie, setting a pool ID from a MasterChef, a gauge, etc.
+     */
+    function chargeVoid() external;
+
+    /**
      *  @notice Get the pending rewards manually - helpful to get rewards through static calls
      *
      *  @return tokens The addresses of the reward tokens earned by harvesting rewards
      *  @return amounts The amounts of each token received
      *
-     *  @custom:security non-reentrant only-eoa
+     *  @custom:security non-reentrant
      */
     function getRewards() external returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
-     *  @notice Only EOA can call
+     *  @notice Only the harvester can reinvest
      *  @notice Reinvests all rewards from the rewarder to buy more USD to then deposit back into the rewarder
      *          This makes totalBalance increase in this contract, increasing the exchangeRate between
      *          CygUSD and underlying and thus lowering utilization rate and borrow rate
      *
-     *  @custom:security non-reentrant only-eoa
+     *  @custom:security only-harvester
      */
     function reinvestRewards_y7b(uint256 liquidity) external;
-
-    /**
-     *  @notice Only EOA can call
-     *  @notice Charges approvals needed for deposits and withdrawals along with setting rewarders (if any)
-     *
-     *  @custom:security non-reentrant only-eoa
-     */
-    function chargeVoid() external;
 
     /**
      *  @notice Admin 👽
@@ -132,7 +134,7 @@ interface ICygnusBorrowVoid is ICygnusBorrowModel {
      *
      *  @param _harvester The address of the new harvester contract
      *
-     *  @custom:security non-reentrant only-admin
+     *  @custom:security only-admin
      */
     function setHarvester(ICygnusHarvester _harvester) external;
 }

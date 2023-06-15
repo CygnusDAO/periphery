@@ -8,7 +8,6 @@ import {IERC20Permit} from "./IERC20Permit.sol";
 import {IHangar18} from "./IHangar18.sol";
 import {IAllowanceTransfer} from "./IAllowanceTransfer.sol";
 import {ICygnusNebulaOracle} from "./ICygnusNebulaOracle.sol";
-import {IAggregationRouterV5} from "./IAggregationRouterV5.sol";
 
 /**
  *  @title The interface for CygnusTerminal which handles pool tokens shared by Collateral and Borrow contracts
@@ -36,22 +35,16 @@ interface ICygnusTerminal is IERC20Permit {
     /**
      *  @dev Reverts when attempting to call Admin-only functions
      *
-     *  @param sender The address of the msg.sender
-     *  @param admin The address of the hangar18 Admin
-     *
      *  @custom:error MsgSenderNotAdmin
      */
-    error CygnusTerminal__MsgSenderNotAdmin(address sender, address admin);
+    error CygnusTerminal__MsgSenderNotAdmin();
 
     /**
      *  @dev Reverts when trying to sweep the underlying asset from this contract
      *
-     *  @param token The addresss of the token trying to sweep
-     *  @param underlying The address of the underlying asset
-     *
      *  @custom:error CantSweepUnderlying
      */
-    error CygnusTerminal__CantSweepUnderlying(address token, address underlying);
+    error CygnusTerminal__CantSweepUnderlying();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -64,7 +57,7 @@ interface ICygnusTerminal is IERC20Permit {
      *
      *  @custom:event Sync
      */
-    event Sync(uint256 totalBalance);
+    event Sync(uint160 totalBalance);
 
     /**
      *  @dev Logs when CygLP or CygUSD pool tokens are minted
@@ -89,13 +82,20 @@ interface ICygnusTerminal is IERC20Permit {
      *
      *  @custom:event Redeem
      */
-    event Withdraw(
-        address indexed sender,
-        address indexed recipient,
-        address indexed owner,
-        uint256 assets,
-        uint256 shares
-    );
+    event Withdraw(address indexed sender, address indexed recipient, address indexed owner, uint256 assets, uint256 shares);
+
+    /**
+     *  @dev Logs when the admin sweeps a token that was incorrectly sent to this address
+     *  @notice It CANNOT sweep the underlying token (USD for borrowable and LPs for collateral pools), doing so
+     *          will revert the tx.
+     *
+     *  @param sender The msg.sender
+     *  @param token The token being swept
+     *  @param balance The balance of `token` swept from this contract
+     *
+     *  @custom:event SweepToken
+     */
+    event SweepToken(address indexed sender, address indexed token, uint256 balance);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
            3. CONSTANT FUNCTIONS
@@ -104,7 +104,7 @@ interface ICygnusTerminal is IERC20Permit {
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
-     *  @return PERMIT2 Uniswap's Permit2 router. We use the AllowanceTransfer as opposed to SignatureTransfer 
+     *  @return PERMIT2 Uniswap's Permit2 router. We use the AllowanceTransfer as opposed to SignatureTransfer
      *                  to allow router deposits.
      */
     function PERMIT2() external view returns (IAllowanceTransfer);
@@ -132,7 +132,7 @@ interface ICygnusTerminal is IERC20Permit {
     /**
      *  @return totalBalance Total balance owned by this shuttle pool in terms of its underlying
      */
-    function totalBalance() external view returns (uint256);
+    function totalBalance() external view returns (uint160);
 
     /**
      *  @return exchangeRate The ratio which 1 pool token can be redeemed for underlying amount.
@@ -157,9 +157,9 @@ interface ICygnusTerminal is IERC20Permit {
      *
      *  @param assets Amount of the underlying asset to deposit.
      *  @param recipient Address that will receive the corresponding amount of shares.
+     *  @param _permit Data signed over by the owner specifying the terms of approval
+     *  @param _signature The owner's signature over the permit data
      *  @return shares Amount of Cygnus Vault shares minted and transferred to the `recipient`.
-     *
-     *  @custom:security non-reentrant
      */
     function deposit(
         uint256 assets,
@@ -180,8 +180,6 @@ interface ICygnusTerminal is IERC20Permit {
      *  @param owner The address that owns the shares.
      *
      *  @return assets The amount of underlying assets received by the `recipient`.
-     *
-     *  @custom:security non-reentrant
      */
     function redeem(uint256 shares, address recipient, address owner) external returns (uint256 assets);
 

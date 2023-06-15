@@ -3,6 +3,8 @@ pragma solidity >=0.8.17;
 
 // Dependencies
 import {ICygnusBorrowVoid} from "./ICygnusBorrowVoid.sol";
+
+// Overrides
 import {ICygnusTerminal} from "./ICygnusTerminal.sol";
 
 /**
@@ -16,60 +18,51 @@ interface ICygnusBorrow is ICygnusBorrowVoid {
     /**
      *  @dev Reverts when the borrow amount is higher than total balance
      *
-     *  @param borrowAmount The amount being borrowed
-     *  @param balance The total balance of the pool
-     *
      *  @custom:error BorrowExceedsTotalBalance
      */
-    error CygnusBorrow__BorrowExceedsTotalBalance(uint256 borrowAmount, uint256 balance);
+    error CygnusBorrow__BorrowExceedsTotalBalance();
 
     /**
      *  @dev Reverts if the borrower has insufficient liquidity for this borrow
      *
-     *  @param collateral The address of the collateral token
-     *  @param borrower The address of the borrower
-     *
      *  @custom:error InsufficientLiquidity
      */
-    error CygnusBorrow__InsufficientLiquidity(address collateral, address borrower);
+    error CygnusBorrow__InsufficientLiquidity();
 
     /**
-     *  @dev Reverts if borrowAmount and repayAmount are both non-zero
-     *
-     *  @param borrowAmount The amount being borrowed
-     *  @param repayAmount The amount being repaid
+     *  @dev Reverts if borrowAmount is higher than 0 during a repay tx
      *
      *  @custom:error BorrowAndRepayOverload
      */
-    error CygnusBorrow__BorrowRepayOverload(uint256 borrowAmount, uint256 repayAmount);
+    error CygnusBorrow__BorrowRepayOverload();
 
     /**
      *  @dev Reverts if usd received is less than repaid after liquidating
      *
-     *  @param received The amount of USD received after liquidation
-     *  @param repaid The amount of USD repaid during liquidation
-     *
      *  @custom:error InsufficientUsdReceived
      */
-    error CygnusBorrow__InsufficientUsdReceived(uint256 received, uint256 repaid);
+    error CygnusBorrow__InsufficientUsdReceived();
 
     /**
      *  @dev Reverts if liquidating 0 USD
      *
-     *  @param repayAmount The amount being repaid
-     *
      *  @custom:error CantRepayZero Reverts if liquidating 0 USD
      */
-    error CygnusBorrow__CantRepayZero(uint256 repayAmount);
+    error CygnusBorrow__CantRepayZero();
 
     /**
      *  @dev Reverts if repay is more than total borrows
      *
-     *  @param repayAmount The amount being repaid
-     *
      *  @custom:error InvalidRepayAmount
      */
-    error CygnusBorrow__InvalidRepayAmount(uint256 repayAmount);
+    error CygnusBorrow__InvalidRepayAmount();
+
+    /**
+     *  @dev Reverts if msg.sender is not allowed to borrow on behalf of `borrower`
+     *
+     *  @custom:error MasterApprovalDisabled
+     */
+    error CygnusBorrow__MasterApprovalDisabled();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -90,7 +83,7 @@ interface ICygnusBorrow is ICygnusBorrowVoid {
     event Liquidate(
         address indexed sender,
         address indexed borrower,
-        address receiver,
+        address indexed receiver,
         uint256 repayAmount,
         uint256 cygLPAmount,
         uint256 usdAmount
@@ -107,17 +100,13 @@ interface ICygnusBorrow is ICygnusBorrowVoid {
      *
      *  @custom:event Borrow
      */
-    event Borrow(
-        address indexed sender,
-        address indexed borrower,
-        address receiver,
-        uint256 borrowAmount,
-        uint256 repayAmount
-    );
+    event Borrow(address indexed sender, address indexed borrower, address indexed receiver, uint256 borrowAmount, uint256 repayAmount);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
      *  @notice Overrides the exchange rate of `CygnusTerminal` for borrow contracts to mint reserves
@@ -125,24 +114,6 @@ interface ICygnusBorrow is ICygnusBorrowVoid {
     function exchangeRate() external override(ICygnusTerminal) returns (uint256);
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
-
-    /**
-     *  @notice This low level function should only be called from `CygnusAltair` contract only
-     *
-     *  @param borrower The address of the borrower being liquidated
-     *  @param receiver The address of the receiver of the collateral
-     *  @param repayAmount USD amount covering the loan
-     *  @param data Calltype data passed to Router contract.
-     *  @return usdAmount The amount of USD deposited after taking into account liq. incentive
-     *
-     *  @custom:security non-reentrant
-     */
-    function liquidate(
-        address borrower,
-        address receiver,
-        uint256 repayAmount,
-        bytes calldata data
-    ) external returns (uint256 usdAmount);
 
     /**
      *  @notice This low level function should only be called from `CygnusAltair` contract only
@@ -157,9 +128,22 @@ interface ICygnusBorrow is ICygnusBorrowVoid {
     function borrow(address borrower, address receiver, uint256 borrowAmount, bytes calldata data) external;
 
     /**
+     *  @notice This low level function should only be called from `CygnusAltair` contract only
+     *
+     *  @param borrower The address of the borrower being liquidated
+     *  @param receiver The address of the receiver of the collateral
+     *  @param repayAmount USD amount covering the loan
+     *  @param data Calltype data passed to Router contract.
+     *  @return usdAmount The amount of USD deposited after taking into account liq. incentive
+     *
+     *  @custom:security non-reentrant
+     */
+    function liquidate(address borrower, address receiver, uint256 repayAmount, bytes calldata data) external returns (uint256 usdAmount);
+
+    /**
      *  @notice Syncs internal balance with totalBalance
      *
-     *  @custom:security non-reentrant only-eoa
+     *  @custom:security non-reentrant
      */
     function sync() external;
 }

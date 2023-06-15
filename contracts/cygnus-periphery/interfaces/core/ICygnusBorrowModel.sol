@@ -4,6 +4,9 @@ pragma solidity >=0.8.17;
 // Dependencies
 import {ICygnusBorrowControl} from "./ICygnusBorrowControl.sol";
 
+/**
+ *  @notice Interface for the borrow model
+ */
 interface ICygnusBorrowModel is ICygnusBorrowControl {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
@@ -13,20 +16,12 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
      *  @dev Logs when interest is accrued to borrows and reserves
      *
      *  @param cashStored Total balance of this lending pool's asset (USDC)
-     *  @param interestAccumulated Interest accumulated since last accrual
-     *  @param borrowIndexStored The latest stored borrow index
      *  @param totalBorrowsStored Total borrow balances of this lending pool
-     *  @param borrowRateStored The current borrow rate
+     *  @param interestAccumulated Interest accumulated since last accrual
      *
-     *  @custom:event AccrueInterest 
+     *  @custom:event AccrueInterest
      */
-    event AccrueInterest(
-        uint256 cashStored,
-        uint256 interestAccumulated,
-        uint256 borrowIndexStored,
-        uint256 totalBorrowsStored,
-        uint256 borrowRateStored
-    );
+    event AccrueInterest(uint256 cashStored, uint256 totalBorrowsStored, uint256 interestAccumulated);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -37,17 +32,17 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
     /**
      *  @return totalBorrows Total borrows stored in the lending pool
      */
-    function totalBorrows() external view returns (uint256);
+    function totalBorrows() external view returns (uint96);
 
     /**
      *  @return borrowIndex Borrow index stored of this lending pool, starts at 1e18
      */
-    function borrowIndex() external view returns (uint112);
+    function borrowIndex() external view returns (uint80);
 
     /**
-     *  @return borrowRate The current per-second borrow rate stored for this pool. 
+     *  @return borrowRate The current per-second borrow rate stored for this pool.
      */
-    function borrowRate() external view returns (uint112);
+    function borrowRate() external view returns (uint48);
 
     /**
      *  @return lastAccrualTimestamp The unix timestamp stored of the last interest rate accrual
@@ -60,9 +55,10 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
      *
      *  @param borrower The address whose balance should be calculated
      *
-     *  @return balance The account's outstanding borrow balance or 0 if borrower's interest index is zero
+     *  @return principal The USD amount borrowed without interest accrual
+     *  @return borrowBalance The USD amount borrowed with interest accrual (ie. USD amount the borrower must repay)
      */
-    function getBorrowBalance(address borrower) external view returns (uint256 balance);
+    function getBorrowBalance(address borrower) external view returns (uint256 principal, uint256 borrowBalance);
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
@@ -83,7 +79,7 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
-     *  @notice Applies interest accruals to borrows and reserves (uses 2 memory slots with blockTimeStamp)
+     *  @notice Applies interest accruals to borrows and reserves (uses 1 memory slot per accrual)
      */
     function accrueInterest() external;
 

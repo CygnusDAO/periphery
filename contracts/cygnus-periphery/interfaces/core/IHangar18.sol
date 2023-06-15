@@ -189,13 +189,7 @@ interface IHangar18 {
      *
      *  @custom:event NewShuttle
      */
-    event NewShuttle(
-        address indexed lpTokenPair,
-        uint256 indexed shuttleId,
-        uint256 orbiterId,
-        address borrowable,
-        address collateral
-    );
+    event NewShuttle(address indexed lpTokenPair, uint256 indexed shuttleId, uint256 orbiterId, address borrowable, address collateral);
 
     /**
      *  @dev Logs when a new Cygnus admin is requested
@@ -289,6 +283,17 @@ interface IHangar18 {
      */
     event NewX1Vault(address oldVault, address newVault);
 
+    /**
+     *  @dev Logs when an owner allows or disallows spender to borrow on their behalf
+     *
+     *  @param owner The address of msg.sender (owner of the CygLP)
+     *  @param spender The address of the user the owner is allowing/disallowing
+     *  @param status Whether or not the spender can borrow after this transaction
+     *
+     *  @custom:event NewMasterBorrowApproval
+     */
+    event NewMasterBorrowApproval(address owner, address spender, bool status);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -296,13 +301,16 @@ interface IHangar18 {
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
 
     /**
-     *  @notice We write it to interface due to getShuttles return value
-     *  @custom:struct Official record of all collateral and borrow deployer contracts, unique per dex
-     *  @custom:member status Whether or not these orbiters are active and usable
-     *  @custom:member orbiterId The ID for this pair of orbiters
-     *  @custom:member albireoOrbiter The address of the borrow deployer contract
-     *  @custom:member denebOrbiter The address of the collateral deployer contract
-     *  @custom:member orbiterName The name of the dex
+     * @custom:struct Official record of all collateral and borrow deployer contracts, unique per dex
+     * @custom:member status Whether or not these orbiters are active and usable
+     * @custom:member orbiterId The ID for this pair of orbiters
+     * @custom:member albireoOrbiter The address of the borrow deployer contract
+     * @custom:member denebOrbiter The address of the collateral deployer contract
+     * @custom:member borrowableInitCodeHash The hash of the borrowable contract's initialization code
+     * @custom:member collateralInitCodeHash The hash of the collateral contract's initialization code
+     * @custom:member nebulaOracle The address of the Cygnus Nebula Oracle contract
+     * @custom:member uniqueHash The unique hash of the orbiter
+     * @custom:member orbiterName Huamn friendly name for the orbiters
      */
     struct Orbiter {
         bool status;
@@ -509,10 +517,7 @@ interface IHangar18 {
      *
      *  @custom:security non-reentrant only-admin 👽
      */
-    function deployShuttle(
-        address lpTokenPair,
-        uint256 orbiterId
-    ) external returns (address borrowable, address collateral);
+    function deployShuttle(address lpTokenPair, uint256 orbiterId) external returns (address borrowable, address collateral);
 
     /**
      *  @notice Admin 👽

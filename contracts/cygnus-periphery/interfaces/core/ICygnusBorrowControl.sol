@@ -16,13 +16,9 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     /**
      *  @dev Reverts when attempting to set a parameter outside the min/max ranges allowed in the Control contract
      *
-     *  @param min The minimum allowed value.
-     *  @param max The maximum allowed value.
-     *  @param value The actual value provided.
-     *
      *  @custom:error ParameterNotInRange
      */
-    error CygnusBorrowControl__ParameterNotInRange(uint256 min, uint256 max, uint256 value);
+    error CygnusBorrowControl__ParameterNotInRange();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
