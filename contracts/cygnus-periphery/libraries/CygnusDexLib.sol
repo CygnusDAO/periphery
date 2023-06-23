@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  CygnusDexLib.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 import {FixedPointMathLib} from "./FixedPointMathLib.sol";
@@ -21,33 +38,5 @@ library CygnusDexLib {
         uint256 c = FixedPointMathLib.sqrt(a * a + b);
         uint256 d = 2 * _swapFee;
         return (c - a) / d;
-    }
-
-    function _optimalDeposit(
-        uint256 _amountA,
-        uint256 _amountB,
-        uint256 _reserveA,
-        uint256 _reserveB,
-        uint256 _decimalsA,
-        uint256 _decimalsB
-    ) internal pure returns (uint256) {
-        uint256 num;
-        uint256 den;
-        {
-            uint256 a = _amountA.divWad(_decimalsA);
-            uint256 b = _amountB.divWad(_decimalsB);
-            uint256 x = _reserveA.divWad(_decimalsA);
-            uint256 y = _reserveB.divWad(_decimalsB);
-            uint256 p;
-            {
-                uint256 x2 = x.mulWad(x);
-                uint256 y2 = y.mulWad(y);
-                p = (y * ((x2 * 3 + y2).divWad(y2 * 3 + x2))) / x;
-            }
-            num = a * y - b * x;
-            den = (a + x).mulWad(p) + y + b;
-        }
-
-        return ((num / den) * _decimalsA) / 1e18;
     }
 }

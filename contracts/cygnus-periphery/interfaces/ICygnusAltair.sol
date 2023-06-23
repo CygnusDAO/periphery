@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicensed
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  CygnusAltair.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Dependencies
@@ -106,6 +123,13 @@ interface ICygnusAltair is ICygnusAltairCall {
     error CygnusAltair__ParaswapTransactionFailed();
 
     /**
+     *  @dev Reverts when the 1inch transaction fails
+     *
+     *  @custom:error OneInchTransactionFailed
+     */
+    error CygnusAltair__OneInchTransactionFailed();
+
+    /**
      *  @dev Reverts when USD amount received is less than minimum asked while liquidating
      *
      *  @custom:error InsufficientLiquidateUsd
@@ -137,6 +161,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      */
     enum DexAggregator {
         PARASWAP,
+        ONE_INCH_LEGACY,
         ONE_INCH
     }
 
@@ -155,7 +180,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         address recipient;
         uint256 lpAmountMin;
         DexAggregator dexAggregator;
-        bytes[] swapData;
+        bytes[] swapdata;
     }
 
     /**
@@ -166,7 +191,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @custom:member recipient The address of the user receiving the de-leveraged assets
      *  @custom:member redeemTokens The amount of CygLP to redeem
      *  @custom:member usdAmountMin The minimum amount of USD to receive by redeeming `redeemTokens`
-     *  @custom:member swapData The 1inch swap data byte array to convert Liquidity Tokens to USD
+     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD
      */
     struct AltairDeleverageCalldata {
         address lpTokenPair;
@@ -176,7 +201,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         uint256 redeemTokens;
         uint256 usdAmountMin;
         DexAggregator dexAggregator;
-        bytes[] swapData;
+        bytes[] swapdata;
     }
 
     /**
@@ -187,7 +212,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @custom:member recipient The address of the liquidator (or this contract if protocol liquidation)
      *  @custom:member borrower The address of the borrower being liquidated
      *  @custom:member repayAmount The USD amount being repaid by the liquidator
-     *  @custom:member swapData The 1inch swap data byte array to convert Liquidity Tokens to USD after burning
+     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD after burning
      */
     struct AltairLiquidateCalldata {
         address lpTokenPair;
@@ -197,7 +222,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         address borrower;
         uint256 repayAmount;
         DexAggregator dexAggregator;
-        bytes[] swapData;
+        bytes[] swapdata;
     }
 
     /**
@@ -374,7 +399,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
-     *  @param swapData Calldata to swap
+     *  @param swapdata Calldata to swap
      */
     function flashLiquidate(
         address borrowable,
@@ -384,7 +409,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         address recipient,
         uint256 deadline,
         DexAggregator dexAggregator,
-        bytes[] calldata swapData
+        bytes[] calldata swapdata
     ) external returns (uint256 amount);
 
     /**
@@ -397,7 +422,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData Permit data for borrowable leverage
      *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
-     *  @param swapData the 1inch swap data to convert USD to liquidity
+     *  @param swapdata the 1inch swap data to convert USD to liquidity
      */
     function leverage(
         address lpTokenPair,
@@ -408,7 +433,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         uint256 deadline,
         bytes calldata permitData,
         DexAggregator dexAggregator,
-        bytes[] calldata swapData
+        bytes[] calldata swapdata
     ) external;
 
     /**
@@ -421,7 +446,7 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param permitData Permit data for collateral deleverage
      *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
-     *  @param swapData the 1inch swap data to convert liquidity to USD
+     *  @param swapdata the 1inch swap data to convert liquidity to USD
      */
     function deleverage(
         address lpTokenPair,
@@ -432,7 +457,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         uint256 deadline,
         bytes calldata permitData,
         DexAggregator dexAggregator,
-        bytes[] calldata swapData
+        bytes[] calldata swapdata
     ) external;
 
     /**

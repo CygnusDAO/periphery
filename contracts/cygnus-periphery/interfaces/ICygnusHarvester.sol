@@ -2,10 +2,39 @@
 pragma solidity >=0.8.17;
 
 import {IHangar18} from "./core/IHangar18.sol";
-import {IAggregationRouterV5} from "./core/IAggregationRouterV5.sol";
 
 // Interface to interact with harvester if needed
 interface ICygnusHarvester {
+    /**
+     *  @notice Enum for choosing dex aggregators to perform leverage, deleverage and liquidations
+     *  @custom:member PARASWAP Pass 0 to use Paraswap
+     *  @custom:member ONE_INCH Pass 1 to use 1Inch
+     */
+    enum DexAggregator {
+        PARASWAP,
+        ONE_INCH
+    }
+
+    /**
+     *  @dev A struct representing a harvester that holds information about the LP token pair and its components
+     *  @custom:member underlying The address of the LP token pair
+     *  @custom:member wantToken The address of the token the harvester wants to swap rewards into (tokenA)
+     *  @custom:member needToken The address of the token that the harvester needs to provide as liquidity (tokenB)
+     */
+    struct Harvester {
+        uint256 shuttleId;
+        address terminal;
+        address underlying;
+        address wantToken;
+        address receiver;
+    }
+
+    function getHarvester(address) external view returns (Harvester memory);
+
+    function allHarvesters(
+        uint256 index
+    ) external view returns (uint256 shuttleId, address terminal, address underlying, address wantToken, address receiver);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -19,35 +48,30 @@ interface ICygnusHarvester {
      */
     error CygnusHarvester__OnlyEOAAllowed(address sender, address origin);
 
+    error CygnusHarvester__RewardTokenAlreadyAdded();
+
+    error CygnusHarvester__ParaswapTransactionFailed();
+
     /**
      *  @dev Reverts if the receiver of the swap is not this contract
      *
-     *  @param dstReceiver The expected receiver address of the swap
-     *  @param receiver The actual receiver address of the swap
-     *
      *  @custom:error DstReceiverNotValid
      */
-    error CygnusHarvester__DstReceiverNotValid(address dstReceiver, address receiver);
+    error CygnusHarvester__DstReceiverNotValid();
 
     /**
      *  @dev Reverts if the token received is not underlying
      *
-     *  @param dstToken The expected address of the token received
-     *  @param token The actual address of the token received
-     *
      *  @custom:error DstTokenNotValid
      */
-    error CygnusHarvester__DstTokenNotValid(address dstToken, address token);
+    error CygnusHarvester__DstTokenNotValid();
 
     /**
      *  @dev Reverts if the src token we are swapping is not the rewards token
      *
-     *  @param srcToken The expected address of the token to be swapped
-     *  @param token The actual address of the token to be swapped
-     *
      *  @custom:error SrcTokenNotValid
      */
-    error CygnusHarvester__SrcTokenNotValid(address srcToken, address token);
+    error CygnusHarvester__SrcTokenNotValid();
 
     /**
      *  @dev Reverts if the harvester is not initialized
@@ -61,21 +85,16 @@ interface ICygnusHarvester {
     /**
      *  @dev Reverts if the harvester is already initialized
      *
-     *  @param harvester The address of the collateral passed
-     *
      *  @custom:error HarvesterAlreadyInitialized
      */
-    error CygnusHarvester__HarvesterAlreadyInitialized(address harvester);
+    error CygnusHarvester__HarvesterAlreadyInitialized();
 
     /**
      *  @dev Reverts if msg.sender is not harvester admin
      *
-     *  @param sender The address of the msg.sender
-     *  @param admin The address of the harvester admin
-     *
      *  @custom:error MsgSenderNotAdmin
      */
-    error CygnusHarvester__MsgSenderNotAdmin(address sender, address admin);
+    error CygnusHarvester__MsgSenderNotAdmin();
 
     /**
      *  @dev Reverts if reinvest amount is zero
@@ -121,9 +140,13 @@ interface ICygnusHarvester {
      */
     error CygnusHarvester__X1VaultRewardNotOne();
 
+    error CygnusHarvester__RewardTokenNotValid();
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             2. CUSTOM EVENTS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    event RewardTokenRemoved(address token);
 
     /**
      *  @dev Logs when a borrowable harvester is initialized for a shuttle.
@@ -194,27 +217,19 @@ interface ICygnusHarvester {
     function MIN_X1_REWARD() external pure returns (uint256);
 
     /**
-     *  @dev Returns the address of the harvester at the given index.
-     *
-     *  @param index The index of the harvester.
-     *  @return The address of the harvester at the given index.
-     */
-    function allHarvesters(uint256 index) external view returns (address);
-
-    /**
      *  @dev Returns the reward token at `index`
      *
      *  @param index The index in the array.
      *  @return The address of the reward token at the given index.
      */
-    function allX1RewardTokens(uint256 index) external view returns (address);
+    function allRewardTokens(uint256 index) external view returns (address);
 
     /**
      *  @dev Returns the name of the contract.
      *
      *  @return The name of the contract.
      */
-    function name() external pure returns (string memory);
+    function name() external view returns (string memory);
 
     /**
      *  @dev Returns the current percentage of rewards that is kept for the Cygnus X1 Vault on this chain.
@@ -238,6 +253,13 @@ interface ICygnusHarvester {
     function nativeToken() external view returns (address);
 
     /**
+     *  @dev Returns the address of usdc
+     *
+     *  @return The address of usdc on this chain
+     */
+    function usd() external view returns (address);
+
+    /**
      *  @dev Returns the address of the CygnusX1Vault contract.
      *
      *  @return The address of the CygnusX1Vault contract.
@@ -249,7 +271,9 @@ interface ICygnusHarvester {
      *
      *  @return The address of the AggregationRouterV5 contract.
      */
-    function ONE_INCH_ROUTER_V5() external pure returns (IAggregationRouterV5);
+    function ONE_INCH_ROUTER_V5() external pure returns (address);
+
+    function PARASWAP_AUGUSTUS_SWAPPER_V5() external pure returns (address);
 
     /**
      *  @dev Returns the amount of collaterals initialized
@@ -259,16 +283,7 @@ interface ICygnusHarvester {
     /**
      *  @dev Returns the amount of reward tokens to be sent to the X1 Vault
      */
-    function x1RewardTokensLength() external view returns (uint256);
-
-    /**
-     *  @notice Returns the balance of the specified reward token held by the contract.
-     *
-     *  @param rewardToken The address of the reward token to check the balance of.
-     *
-     *  @return The balance of the specified reward token.
-     */
-    function rewardTokenBalance(address rewardToken) external view returns (uint256);
+    function rewardTokensLength() external view returns (uint256);
 
     /**
      *  @notice Returns the balance of the index token at the specified index.
@@ -287,6 +302,13 @@ interface ICygnusHarvester {
      */
     function lastX1Collect() external view returns (uint256);
 
+    /**
+     *  @notice Max reward for the Harvester, which is 3% according to 1inch referral
+     */
+    function HARVESTER_REWARD() external pure returns (uint256);
+
+    function isRewardToken(address) external view returns (bool);
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -303,7 +325,9 @@ interface ICygnusHarvester {
      *  - At least one non-zero reward amount must be harvested.
      */
     // prettier-ignore
-    function reinvestRewards(address terminalToken, bytes[] calldata swapData) external returns (uint256);
+    function reinvestRewards(DexAggregator dexAggregator, address terminalToken, bytes[] calldata swapData) external returns (uint256);
+
+    function getRewards(address terminalToken) external returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
      *  @notice Collects all pending rewards of approved tokens and sends it to the X1 vault
@@ -316,16 +340,6 @@ interface ICygnusHarvester {
 
     /**
      *  @notice Admin 👽
-     *  @notice Initializes a new harvester for the provided `terminalToken` collateral.
-     *
-     *  @param collateral The collateral token to initialize the harvester for.
-     *
-     *  @custom:security only-admin
-     */
-    function initializeHarvester(address collateral) external;
-
-    /**
-     *  @notice Admin 👽
      *  @notice Allows the Cygnus admin to set a new x1VaultReward
      *  @notice must be within min-max ranges allowed
      *
@@ -333,7 +347,7 @@ interface ICygnusHarvester {
      *
      *  @custom:security only-admin
      */
-    function newX1VaultReward(uint256 vaultreward) external;
+    function updateX1VaultWeight(uint256 vaultreward) external;
 
     /**
      *  @notice Admin 👽
@@ -343,7 +357,9 @@ interface ICygnusHarvester {
      *
      *  @custom:security only-admin
      */
-    function addX1VaultRewardToken(address token) external;
+    function addRewardToken(address token) external;
+
+    function removeRewardToken(address token) external;
 
     /**
      *  @notice Admin 👽
@@ -364,4 +380,8 @@ interface ICygnusHarvester {
      *  @custom:security only-admin
      */
     function sweepToken(address token) external;
+
+    function harvestToX1Vault(address terminalToken) external;
+
+    function initializeHarvester(address terminalToken, address wantToken, address receiver) external;
 }

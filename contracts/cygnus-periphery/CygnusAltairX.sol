@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  CygnusAltairX.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Dependencies
@@ -8,7 +25,6 @@ import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
 // Interfaces
 import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
-import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/core/IAggregationRouterV5.sol";
 import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
 
 // Libraries
@@ -26,10 +42,10 @@ import {IDexRouter} from "./interfaces/core/CollateralVoid/IDexRouter.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 
 /**
+ *  @title  CygnusAltairX Extension of router contract that handles DEX specific functionalities and core contract callbacks
+ *  @author CygnusDAO
  *  @notice Router that is used to leverage, deleverage and flash liquidate. Where as CygnusAltair.sol contains
  *          the functions that are the same for all lending pools, CygnusAltairX is dex-specific.
- *  @title  CygnusAltairX Contract that handles DEX specific functionalities and core contract callbacks
- *  @author CygnusDAO
  */
 contract CygnusAltairX is CygnusAltair {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -187,7 +203,7 @@ contract CygnusAltairX is CygnusAltair {
      *  @param token0 The address of token0 from the LP Token
      *  @param token1 The address of token1 from the LP Token
      *  @param amountUsd The amount of USD to convert to LP
-     *  @param swapData Bytes array consisting of 1inch API swap data
+     *  @param swapdata Bytes array consisting of 1inch API swap data
      *  @param reserves0 The reserves of token0
      *  @param reserves1 The reserves of token1
      *  @return liquidity The amount of LP minted
@@ -197,7 +213,7 @@ contract CygnusAltairX is CygnusAltair {
         address token0,
         address token1,
         uint256 amountUsd,
-        bytes[] memory swapData,
+        bytes[] memory swapdata,
         uint256 reserves0,
         uint256 reserves1
     ) private returns (uint256 liquidity) {
@@ -222,7 +238,7 @@ contract CygnusAltairX is CygnusAltair {
             }
 
             // Swap USD to tokenA using dex aggregator
-            _swapTokensAggregator(dexAggregator, swapData[0], usd, amountUsd);
+            _swapTokensAggregator(dexAggregator, swapdata[0], usd, amountUsd);
         }
 
         // ─────────────────────── 3. Calculate optimal deposit amount for an LP Token
@@ -251,7 +267,7 @@ contract CygnusAltairX is CygnusAltair {
      *  @param amountTokenB The amount of token B to convert to USD
      *  @param token0 The address of token0 from the LP Token pair
      *  @param token1 The addre.s of token1 from the LP Token pair
-     *  @param swapData Bytes array consisting of 1inch API swap data
+     *  @param swapdata Bytes array consisting of 1inch API swap data
      */
     function convertLiquidityToUsd(
         DexAggregator dexAggregator,
@@ -259,7 +275,7 @@ contract CygnusAltairX is CygnusAltair {
         uint256 amountTokenB,
         address token0,
         address token1,
-        bytes[] memory swapData
+        bytes[] memory swapdata
     ) private returns (uint256) {
         // ─────────────────────── 1. Check if token0 or token1 is already USD
         uint256 amountA;
@@ -269,8 +285,8 @@ contract CygnusAltairX is CygnusAltair {
         if (token0 == usd || token1 == usd) {
             // Convert the other token to USD and return
             (amountA, amountB) = token0 == usd
-                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapData[1], token1, amountTokenB))
-                : (_swapTokensAggregator(dexAggregator, swapData[0], token0, amountTokenA), amountTokenB);
+                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, amountTokenB))
+                : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, amountTokenA), amountTokenB);
 
             // Explicit return
             return amountA + amountB;
@@ -278,11 +294,10 @@ contract CygnusAltairX is CygnusAltair {
 
         // ─────────────────── 2. Not USD, swap both to USD
         // Swap token0 to USD
-
-        amountA = _swapTokensAggregator(dexAggregator, swapData[0], token0, amountTokenA);
+        amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, amountTokenA);
 
         // Swap token1 to USD
-        amountB = _swapTokensAggregator(dexAggregator, swapData[1], token1, amountTokenB);
+        amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, amountTokenB);
 
         // USD balance
         return amountA + amountB;
@@ -342,7 +357,7 @@ contract CygnusAltairX is CygnusAltair {
      *  @param collateral The address of the Cygnus Collateral
      *  @param borrowable The address of the borrowable contract
      *  @param seizeTokens The amount of CygLP seized
-     *  @param swapData The 1inch calldata to swap LP back to USD
+     *  @param swapdata The 1inch calldata to swap LP back to USD
      *  @return usdAmount The amount of USD received
      */
     function flashLiquidatePrivate(
@@ -353,7 +368,7 @@ contract CygnusAltairX is CygnusAltair {
         uint256 seizeTokens,
         uint256 repayAmount,
         DexAggregator dexAggregator,
-        bytes[] memory swapData
+        bytes[] memory swapdata
     ) private returns (uint256 usdAmount) {
         // Calculate LP amount to redeem
         uint256 redeemAmount = seizeTokens.mulWad(ICygnusCollateral(collateral).exchangeRate());
@@ -368,7 +383,7 @@ contract CygnusAltairX is CygnusAltair {
         (, , , , , address token0, address token1) = IDexPair(lpTokenPair).metadata();
 
         // Convert amountA and amountB to USD
-        convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapData);
+        convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
 
         // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
         usdAmount = _checkBalance(usd);
@@ -501,7 +516,7 @@ contract CygnusAltairX is CygnusAltair {
             cygLPAmount, // Seized amount of CygLP
             repayAmount,
             cygnusShuttle.dexAggregator,
-            cygnusShuttle.swapData
+            cygnusShuttle.swapdata
         );
     }
 
@@ -532,7 +547,7 @@ contract CygnusAltairX is CygnusAltair {
             borrowAmount,
             cygnusShuttle.lpAmountMin,
             cygnusShuttle.dexAggregator,
-            cygnusShuttle.swapData
+            cygnusShuttle.swapdata
         );
     }
 
@@ -567,7 +582,7 @@ contract CygnusAltairX is CygnusAltair {
             redeemData.redeemTokens,
             redeemData.usdAmountMin,
             redeemData.dexAggregator,
-            redeemData.swapData
+            redeemData.swapdata
         );
     }
 
