@@ -304,7 +304,7 @@ abstract contract CygnusAltair is ICygnusAltair {
      *  @param srcAmount The balanceOf this contract`s srcToken
      *  @return amountOut The amount received of destination token
      */
-    function swapTokensInchLegacyPrivate(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+    function swapTokensOneInchV1Private(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
         // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
         (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi.decode(
             swapdata,
@@ -330,7 +330,7 @@ abstract contract CygnusAltair is ICygnusAltair {
      *  @param srcAmount The balanceOf this contract`s srcToken
      *  @return amountOut The amount received of destination token
      */
-    function swapTokensInchPrivate(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+    function swapTokensOneInchV2Private(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
         // Approve 1Inch Router in `srcToken` if necessary
         _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
 
@@ -366,17 +366,15 @@ abstract contract CygnusAltair is ICygnusAltair {
         // Check which dex aggregator to use
         // Case 1: PARASWAP
         if (dexAggregator == DexAggregator.PARASWAP) {
-            // Swap tokens using ParaSwap aggregator
             amountOut = swapTokensParaswapPrivate(swapdata, srcToken, srcAmount);
         }
         // Case 2: ONE INCH LEGACY
         else if (dexAggregator == DexAggregator.ONE_INCH_LEGACY) {
-            // Swap tokens using 1inch aggregator
-            amountOut = swapTokensInchLegacyPrivate(swapdata, srcToken, srcAmount);
+            amountOut = swapTokensOneInchV1Private(swapdata, srcToken, srcAmount);
         }
         // Case 3: ONE INCH
         else if (dexAggregator == DexAggregator.ONE_INCH) {
-            amountOut = swapTokensInchPrivate(swapdata, srcToken, srcAmount);
+            amountOut = swapTokensOneInchV2Private(swapdata, srcToken, srcAmount);
         }
     }
 
