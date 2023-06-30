@@ -31,30 +31,65 @@ quote from the DEX aggregators. See the function argument `DexAggregator dexAggr
   <img src="https://assets-global.website-files.com/606f63778ec431ec1b930f1f/60d10d967f7d15d8fba352a9_1inch.png" alt="1Inch">
 
 ```solidity
-/**
- *  @notice Creates the swap with 1Inch's AggregatorV5. We pass an extra param `updatedAmount` to eliminate
- *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
- *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
- *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
- *  @param swapData The data from 1inch `swap` query
- *  @param updatedAmount The balanceOf this contract`s srcToken
- *  @return amountOut The amount received of destination token
- */
-function _swapTokensInch(bytes memory swapData, uint256 updatedAmount) internal returns (uint256 amountOut) {
-    // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
-    (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi
-        .decode(swapData, (address, IAggregationRouterV5.SwapDescription, bytes, bytes));
+    // Swap tokens via 1inch legacy (aka `swap` method)
 
-    // Update swap amount to current balance of src token (if needed)
-    if (desc.amount != updatedAmount) desc.amount = updatedAmount;
+    /**
+     *  @notice Creates the swap with 1Inch's AggregatorV5. We pass an extra param `updatedAmount` to eliminate
+     *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
+     *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
+     *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
+     *  @param swapdata The data from 1inch `swap` query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function swapTokensOneInchV1Private(
+        bytes memory swapdata,
+        address srcToken,
+        uint256 srcAmount
+    ) internal returns (uint256 amountOut) {
+        // Get aggregation executor, swap params and the encoded calls for the executor from 1inch API call
+        (address caller, IAggregationRouterV5.SwapDescription memory desc, bytes memory permit, bytes memory data) = abi
+            .decode(swapdata, (address, IAggregationRouterV5.SwapDescription, bytes, bytes));
 
-    // Approve 1Inch Router in `srcToken` if necessary
-    _approveToken(address(desc.srcToken), address(ONE_INCH_ROUTER_V5), desc.amount);
+        // Update swap amount to current balance of src token (if needed)
+        if (desc.amount != srcAmount) desc.amount = srcAmount;
 
-    // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
-    // of the leverage/deleverage functions anyways
-    (amountOut, ) = IAggregationRouterV5(ONE_INCH_ROUTER_V5).swap(IAggregationExecutor(caller), desc, permit, data);
-}
+        // Approve 1Inch Router in `srcToken` if necessary
+        _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
+
+        // Swap `srcToken` to `dstToken` - Aggregator does the necessary minAmount check & we do checks at the end
+        // of the leverage/deleverage functions anyways
+        (amountOut, ) = IAggregationRouterV5(ONE_INCH_ROUTER_V5).swap(IAggregationExecutor(caller), desc, permit, data);
+    }
+
+    // Swap tokens via 1inch optimized routers
+
+    /**
+     *  @notice Creates the swap with 1Inch's AggregatorV5 using the router's latest paths (unoswap, uniswapv3, etc.)
+     *  @param swapdata The data from 1inch `swap` query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function swapTokensOneInchV2Private(
+        bytes memory swapdata,
+        address srcToken,
+        uint256 srcAmount
+    ) internal returns (uint256 amountOut) {
+        // Approve 1Inch Router in `srcToken` if necessary
+        _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
+
+        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        (bool success, bytes memory resultData) = ONE_INCH_ROUTER_V5.call{ value: msg.value }(swapdata);
+
+        /// @custom:error OneInchTransactionFailed
+        if (!success) revert CygnusAltair__OneInchTransactionFailed();
+
+        // Return amount received
+        assembly {
+            amountOut := mload(add(resultData, 32))
+        }
+    }
+
 ```
 
 <hr />
