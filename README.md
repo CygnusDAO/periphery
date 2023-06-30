@@ -5,10 +5,11 @@
 | Upgraded to 1inch V5 router                                    | (19/01/2023) |
 | Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023) |
 | Integrated with Paraswap's router                              | (15/06/2023) |
+| Integrated with 0xProject's Swap API                           | (30/06/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
-This router is integrated with <a href="https://1inch.io">1inch</a> and <a href="https://www.paraswap.io/">Paraswap</a> using their latest routers, and it works mostly
+This router is integrated with <a href="https://1inch.io">1inch</a>, <a href="https://www.paraswap.io/">Paraswap</a> and <a href="https://www.0x.org">0xProject</a> using their latest routers and it works mostly
 on-chain. The queries are estimated before the first call off-chain, following the same logic for each swap as this
 contract. Each proceeding call builds on top of the previous one.
 
@@ -91,6 +92,35 @@ function _swapTokensParaswap(
 
     // Return amount received - This is off by some very small amount from the actual contract balance.
     // We shouldn't use it directly. Instead, query contract balance of token received
+    assembly {
+        amountOut := mload(add(resultData, 32))
+    }
+}
+```
+
+<hr />
+**0xProject Integration**
+
+<img src="https://github.com/CygnusDAO/periphery/assets/97303883/920ae004-fb5f-47be-9fcc-830c738c4cf5" alt="zeroex">
+
+```solidity
+/**
+ *  @notice Creates the swap with OxProject's swap API 
+ *  @param swapdata The data from 0x's swap api `quote` query
+ *  @param srcAmount The balanceOf this contract`s srcToken
+ *  @return amountOut The amount received of destination token
+ */
+function swapTokens0xProjectPrivate(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+    // Approve 1Inch Router in `srcToken` if necessary
+    _approveToken(srcToken, address(OxPROJECT_EXCHANGE_PROXY), srcAmount);
+
+    // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+    (bool success, bytes memory resultData) = OxPROJECT_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
+
+    /// @custom:error 0xProjectTransactionFailed
+    if (!success) revert CygnusAltair__0xProjectTransactionFailed();
+
+    // Return amount received
     assembly {
         amountOut := mload(add(resultData, 32))
     }
