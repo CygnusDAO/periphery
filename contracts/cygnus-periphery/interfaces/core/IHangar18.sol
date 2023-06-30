@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  IHangar18.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Orbiters
@@ -6,10 +23,6 @@ import {IDenebOrbiter} from "./IDenebOrbiter.sol";
 import {IAlbireoOrbiter} from "./IAlbireoOrbiter.sol";
 
 // Oracles
-import {ICygnusNebulaOracle} from "./ICygnusNebulaOracle.sol";
-
-// One inch
-import {IAggregationRouterV5} from "./IAggregationRouterV5.sol";
 
 /**
  *  @title The interface for the Cygnus Factory
@@ -33,49 +46,37 @@ interface IHangar18 {
     /**
      *  @dev Reverts when the borrow orbiter already exists
      *
-     *  @param orbiter The address of the Orbiter that already exists
-     *
      *  @custom:error OrbiterAlreadySet
      */
-    error Hangar18__OrbiterAlreadySet(Orbiter orbiter);
+    error Hangar18__OrbiterAlreadySet();
 
     /**
      *  @dev Reverts when trying to deploy a shuttle that already exists
      *
-     *  @param lpTokenPair The address of the LP token pair associated with the Shuttle
-     *  @param orbiterId The ID of the Orbiter associated with the Shuttle
-     *
      *  @custom:error ShuttleAlreadyDeployed
      */
-    error Hangar18__ShuttleAlreadyDeployed(address lpTokenPair, uint256 orbiterId);
+    error Hangar18__ShuttleAlreadyDeployed();
 
     /**
      *  @dev Reverts when deploying a shuttle with orbiters that are inactive or dont exist
      *
-     *  @param orbiter The address of the inactive or non-existent Orbiter
-     *
      *  @custom:error OrbitersAreInactive
      */
-    error Hangar18__OrbitersAreInactive(Orbiter orbiter);
+    error Hangar18__OrbitersAreInactive();
 
     /**
      *  @dev Reverts when predicted collateral address doesn't match with deployed
      *
-     *  @param create2Collateral The predicted address of the collateral token
-     *  @param collateral The address of the actual deployed collateral token
-     *
      *  @custom:error CollateralAddressMismatch
      */
-    error Hangar18__CollateralAddressMismatch(address create2Collateral, address collateral);
+    error Hangar18__CollateralAddressMismatch();
 
     /**
      *  @dev Reverts when trying to deploy a shuttle with an unsupported LP Pair
      *
-     *  @param lpTokenPair The address of the unsupported LP token pair
-     *
-     *  @custom:error LPTokenPairNotSupported
+     *  @custom:error LiquidityTokenNotSupported
      */
-    error Hangar18__LPTokenPairNotSupported(address lpTokenPair);
+    error Hangar18__LiquidityTokenNotSupported();
 
     /**
      *  @dev Reverts when attempting to switch off orbiters that don't exist
@@ -169,16 +170,6 @@ interface IHangar18 {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @dev Logs when a new price oracle is set
-     *
-     *  @param oldCygnusNebula Address of the old price oracle
-     *  @param newCygnusNebula Address of the new confirmed price oracle
-     *
-     *  @custom:event NewCygnusNebulaOracle
-     */
-    event NewCygnusNebulaOracle(ICygnusNebulaOracle oldCygnusNebula, ICygnusNebulaOracle newCygnusNebula);
-
-    /**
      *  @dev Logs when a new lending pool is launched
      *
      *  @param lpTokenPair The address of the LP Token pair
@@ -238,7 +229,6 @@ interface IHangar18 {
      *  @param orbitersLength How many orbiter pairs we have (equals the amount of Dexes cygnus is using)
      *  @param borrowOrbiter The address of the borrow orbiter for this dex
      *  @param denebOrbiter The address of the collateral orbiter for this dex
-     *  @param nebulaOracle The address of the oracle for this orbiter
      *  @param orbitersName The name of the dex for these orbiters
      *  @param uniqueHash The keccack256 hash of the collateral init code hash and borrowable init code hash
      *
@@ -249,7 +239,6 @@ interface IHangar18 {
         uint256 orbitersLength,
         IAlbireoOrbiter borrowOrbiter,
         IDenebOrbiter denebOrbiter,
-        ICygnusNebulaOracle nebulaOracle,
         bytes32 uniqueHash,
         string orbitersName
     );
@@ -308,7 +297,6 @@ interface IHangar18 {
      * @custom:member denebOrbiter The address of the collateral deployer contract
      * @custom:member borrowableInitCodeHash The hash of the borrowable contract's initialization code
      * @custom:member collateralInitCodeHash The hash of the collateral contract's initialization code
-     * @custom:member nebulaOracle The address of the Cygnus Nebula Oracle contract
      * @custom:member uniqueHash The unique hash of the orbiter
      * @custom:member orbiterName Huamn friendly name for the orbiters
      */
@@ -319,7 +307,6 @@ interface IHangar18 {
         IDenebOrbiter denebOrbiter;
         bytes32 borrowableInitCodeHash;
         bytes32 collateralInitCodeHash;
-        ICygnusNebulaOracle nebulaOracle;
         bytes32 uniqueHash;
         string orbiterName;
     }
@@ -351,7 +338,6 @@ interface IHangar18 {
      *  @return denebOrbiter The address of the collateral deployer contract
      *  @return borrowableInitCodeHash The init code hash of the borrowable
      *  @return collateralInitCodeHash The init code hash of the collateral
-     *  @return nebulaOracle The oracle for this orbiter
      *  @return uniqueHash The keccak256 hash of collateralInitCodeHash and borrowableInitCodeHash
      *  @return orbiterName The name of the dex
      */
@@ -367,7 +353,6 @@ interface IHangar18 {
             IDenebOrbiter denebOrbiter,
             bytes32 borrowableInitCodeHash,
             bytes32 collateralInitCodeHash,
-            ICygnusNebulaOracle nebulaOracle,
             bytes32 uniqueHash,
             string memory orbiterName
         );
@@ -394,7 +379,6 @@ interface IHangar18 {
      *  @return denebOrbiter The address of the collateral deployer contract
      *  @return borrowableInitCodeHash The init code hash of the borrowable
      *  @return collateralInitCodeHash The init code hash of the collateral
-     *  @return nebulaOracle The oracle for this orbiter
      *  @return uniqueHash The keccak256 hash of collateralInitCodeHash and borrowableInitCodeHash and oracle address
      *  @return orbiterName The name of the dex
      */
@@ -410,7 +394,6 @@ interface IHangar18 {
             IDenebOrbiter denebOrbiter,
             bytes32 borrowableInitCodeHash,
             bytes32 collateralInitCodeHash,
-            ICygnusNebulaOracle nebulaOracle,
             bytes32 uniqueHash,
             string memory orbiterName
         );
@@ -456,11 +439,6 @@ interface IHangar18 {
     function cygnusX1Vault() external view returns (address);
 
     /**
-     * @return cygnusNebulaOracle The address of the Cygnus price oracle
-     */
-    function allNebulas(uint256 oracleId) external view returns (ICygnusNebulaOracle);
-
-    /**
      *  @return orbitersDeployed The total number of orbiter pairs deployed (1 collateral + 1 borrow = 1 orbiter)
      */
     function orbitersDeployed() external view returns (uint256);
@@ -471,11 +449,6 @@ interface IHangar18 {
     function shuttlesDeployed() external view returns (uint256);
 
     /**
-     *  @return nebulasDeployed The total number of oracles deployed
-     */
-    function nebulasDeployed() external view returns (uint256);
-
-    /**
      *  @return usd The address of the borrowable token (stablecoin)
      */
     function usd() external view returns (address);
@@ -484,11 +457,6 @@ interface IHangar18 {
      *  @return nativeToken The address of the chain's native token
      */
     function nativeToken() external view returns (address);
-
-    /**
-     *  @return AGGREGATION_ROUTER_V5 The address of the 1inch router used for the swaps
-     */
-    function AGGREGATION_ROUTER_V5() external pure returns (IAggregationRouterV5);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -526,16 +494,10 @@ interface IHangar18 {
      *  @param name The name of the strategy OR the dex these orbiters are for
      *  @param albireoOrbiter the address of this orbiter's borrow deployer
      *  @param denebOrbiter The address of this orbiter's collateral deployer
-     *  @param nebulaOracle The oracle for this orbiter
      *
      *  @custom:security non-reentrant only-admin
      */
-    function initializeOrbiter(
-        string memory name,
-        IAlbireoOrbiter albireoOrbiter,
-        IDenebOrbiter denebOrbiter,
-        ICygnusNebulaOracle nebulaOracle
-    ) external;
+    function initializeOrbiter(string memory name, IAlbireoOrbiter albireoOrbiter, IDenebOrbiter denebOrbiter) external;
 
     /**
      *  @notice Admin 👽

@@ -26,7 +26,7 @@ import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
 
 // 1Inch
-import {IAggregationRouterV5} from "./core/IAggregationRouterV5.sol";
+import {IAggregationRouterV5} from "./IAggregationRouterV5.sol";
 
 // Permit2
 import {IAllowanceTransfer} from "./core/IAllowanceTransfer.sol";
@@ -130,6 +130,13 @@ interface ICygnusAltair is ICygnusAltairCall {
     error CygnusAltair__OneInchTransactionFailed();
 
     /**
+     *  @dev Reverts when the 0x swap api transaction fails
+     *
+     *  @custom:error 0xProjectTransactionFailed
+     */
+    error CygnusAltair__0xProjectTransactionFailed();
+
+    /**
      *  @dev Reverts when USD amount received is less than minimum asked while liquidating
      *
      *  @custom:error InsufficientLiquidateUsd
@@ -162,7 +169,8 @@ interface ICygnusAltair is ICygnusAltairCall {
     enum DexAggregator {
         PARASWAP,
         ONE_INCH_LEGACY,
-        ONE_INCH
+        ONE_INCH_V2,
+        OxPROJECT
     }
 
     /**
@@ -244,6 +252,11 @@ interface ICygnusAltair is ICygnusAltairCall {
      *  @return ONE_INCH_ROUTER_V5 The address of the 1Inch router used to perform the swaps
      */
     function ONE_INCH_ROUTER_V5() external pure returns (address);
+
+    /**
+     *  @return OxPROJECT_EXCHANGE_PROXY The address of 0x's exchange proxy
+     */
+    function OxPROJECT_EXCHANGE_PROXY() external pure returns (address);
 
     /**
      *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address

@@ -16,6 +16,24 @@
 //
 //  You should have received a copy of the GNU Affero General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+/*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  
+    .               .            .               .      🛰️     .           .                .           .
+           █████████           ---======*.                                                 .           ⠀
+          ███░░░░░███                                               📡                🌔                         . 
+         ███     ░░░  █████ ████  ███████ ████████   █████ ████  █████        ⠀
+        ░███         ░░███ ░███  ███░░███░░███░░███ ░░███ ░███  ███░░      .     .⠀           .          
+        ░███          ░███ ░███ ░███ ░███ ░███ ░███  ░███ ░███ ░░█████       ⠀
+        ░░███     ███ ░███ ░███ ░███ ░███ ░███ ░███  ░███ ░███  ░░░░███              .             .⠀
+         ░░█████████  ░░███████ ░░███████ ████ █████ ░░████████ ██████     .----===*  ⠀
+          ░░░░░░░░░    ░░░░░███  ░░░░░███░░░░ ░░░░░   ░░░░░░░░ ░░░░░░            .                            .⠀
+                       ███ ░███  ███ ░███                .                 .                 .  ⠀
+     🛰️  .             ░░██████  ░░██████                                             .                 .           
+                       ░░░░░░    ░░░░░░      -------=========*                      .                     ⠀
+           .                            .       .          .            .                          .             .⠀
+    
+        CYGNUS ALTAIR EXTENSION - `Velodrome Volatile LPs`                                                           
+    ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  */
 pragma solidity >=0.8.17;
 
 // Dependencies
@@ -31,10 +49,6 @@ import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
 import {CygnusDexLib} from "./libraries/CygnusDexLib.sol";
 import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 import {FixedPointMathLib} from "./libraries/FixedPointMathLib.sol";
-
-// Orbiter
-import {IDenebOrbiter} from "./interfaces/core/IDenebOrbiter.sol";
-import {IAlbireoOrbiter} from "./interfaces/core/IAlbireoOrbiter.sol";
 
 // Strategies
 import {IDexPair} from "./interfaces/core/CollateralVoid/IDexPair.sol";
@@ -69,21 +83,6 @@ contract CygnusAltairX is CygnusAltair {
     /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
 
     /**
-     *  @notice Borrowable deployer
-     */
-    IAlbireoOrbiter public immutable albireo;
-
-    /**
-     *  @notice Collateral deployer
-     */
-    IDenebOrbiter public immutable deneb;
-
-    /**
-     *  @notice Orbiter ID
-     */
-    uint256 public immutable orbiterId;
-
-    /**
      *  @notice Router for the Dex swap
      */
     IDexRouter public constant DEX_ROUTER = IDexRouter(0x9c12939390052919aF3155f41Bf4160Fd3666A6f);
@@ -97,22 +96,9 @@ contract CygnusAltairX is CygnusAltair {
      *          of deployers and the wrapped native token (WETH, WFTM, etc.)
      *  @param _hangar18 The address of the Cygnus Factory contract on this chain
      */
-    constructor(IHangar18 _hangar18, uint256 _orbiterId) CygnusAltair(_hangar18) {
-        // Get orbiter status and names
-        bool status;
-        string memory orbiterName;
-
-        // Get orbiter name
-        (status, , albireo, deneb, , , , , orbiterName) = _hangar18.getOrbiters(_orbiterId);
-
-        /// @custom:error OrbiterNotActive
-        if (!status) revert CygnusAltairY__OrbitersNotActive();
-
+    constructor(IHangar18 _hangar18, string memory _name) CygnusAltair(_hangar18) {
         // Name
-        name = string(abi.encodePacked("Cygnus-Altair-X: ", orbiterName));
-
-        // Orbiter ID
-        orbiterId = _orbiterId;
+        name = string(abi.encodePacked("Cygnus-Altair: ", _name));
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -303,9 +289,6 @@ contract CygnusAltairX is CygnusAltair {
         return amountA + amountB;
     }
 
-    // 2 FUNCTIONS: - SWAP TOKENS ON THE DEX
-    //              - ADD LIQUIDITY TO THE DEX
-
     /**
      *  @notice Swap tokens using the dex router for the second swap
      *  @param tokenIn The address of the token we are swapping
@@ -465,7 +448,7 @@ contract CygnusAltairX is CygnusAltair {
         // Get token0 and token1
         (, , , , , address token0, address token1) = IDexPair(lpTokenPair).metadata();
 
-        // Convert tokens to USD using Paraswap aggregator
+        // Convert tokens to USD using aggregators
         convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
 
         // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
@@ -479,6 +462,9 @@ contract CygnusAltairX is CygnusAltair {
 
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
+
+        // Clean dust after deleverage
+        cleanDustPrivate(token0, token1, borrower);
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */

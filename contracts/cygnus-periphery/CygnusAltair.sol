@@ -60,7 +60,7 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 
 // --- Aggregators ---
 // 1Inch
-import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/core/IAggregationRouterV5.sol";
+import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/IAggregationRouterV5.sol";
 // Paraswap
 import {IAugustusSwapper} from "./interfaces/IAugustusSwapper.sol";
 
@@ -138,6 +138,11 @@ abstract contract CygnusAltair is ICygnusAltair {
      *  @inheritdoc ICygnusAltair
      */
     address public constant override ONE_INCH_ROUTER_V5 = 0x1111111254EEB25477B68fb85Ed929f73A960582;
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    address public constant override OxPROJECT_EXCHANGE_PROXY = 0xDEF1ABE32c034e558Cdd535791643C58a13aCC10;
 
     /**
      *  @notice Empty permit to deposit leveraged LP amounts
@@ -340,8 +345,31 @@ abstract contract CygnusAltair is ICygnusAltair {
         /// @custom:error OneInchTransactionFailed
         if (!success) revert CygnusAltair__OneInchTransactionFailed();
 
-        // Return amount received - This is off by some very small amount from the actual contract balance.
-        // We shouldn't use it directly. Instead, query contract balance of token received
+        // Return amount received
+        assembly {
+            amountOut := mload(add(resultData, 32))
+        }
+    }
+
+    // Swap tokens via 0xProject's swap API
+
+    /**
+     *  @notice Creates the swap with OxProject's swap API 
+     *  @param swapdata The data from 0x's swap api `quote` query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function swapTokens0xProjectPrivate(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+        // Approve 1Inch Router in `srcToken` if necessary
+        _approveToken(srcToken, address(OxPROJECT_EXCHANGE_PROXY), srcAmount);
+
+        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        (bool success, bytes memory resultData) = OxPROJECT_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
+
+        /// @custom:error 0xProjectTransactionFailed
+        if (!success) revert CygnusAltair__0xProjectTransactionFailed();
+
+        // Return amount received
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -372,9 +400,13 @@ abstract contract CygnusAltair is ICygnusAltair {
         else if (dexAggregator == DexAggregator.ONE_INCH_LEGACY) {
             amountOut = swapTokensOneInchV1Private(swapdata, srcToken, srcAmount);
         }
-        // Case 3: ONE INCH
-        else if (dexAggregator == DexAggregator.ONE_INCH) {
+        // Case 3: ONE INCH V2
+        else if (dexAggregator == DexAggregator.ONE_INCH_V2) {
             amountOut = swapTokensOneInchV2Private(swapdata, srcToken, srcAmount);
+        }
+        // Case 4: 0xPROJECT
+        else if (dexAggregator == DexAggregator.OxPROJECT) { 
+            amountOut = swapTokens0xProjectPrivate(swapdata, srcToken, srcAmount);
         }
     }
 
@@ -459,6 +491,41 @@ abstract contract CygnusAltair is ICygnusAltair {
             );
     }
 
+    /**
+     *  @notice Avoid repeating ourselves to make deleverage data and stack-too-deep errors
+     *  @param lpTokenPair The address of the LP Token
+     *  @param collateral The address of the collateral of the lending pool
+     *  @param borrowable The address of the borrowable of the lending pool
+     *  @param cygLPAmount The amount of CygLP we are deleveraging
+     *  @param usdAmountMin The minimum amount of USD to receive from the deleverage
+     *  @param dexAggregator The dex aggregator to use for the swaps
+     *  @param swapdata the aggregator swap data to convert USD to liquidity
+     */
+    function _createDeleverageShuttle(
+        address lpTokenPair,
+        address collateral,
+        address borrowable,
+        uint256 cygLPAmount,
+        uint256 usdAmountMin,
+        DexAggregator dexAggregator,
+        bytes[] calldata swapdata
+    ) private view returns (bytes memory) {
+        // Encode redeem data
+        return
+            abi.encode(
+                AltairDeleverageCalldata({
+                    lpTokenPair: lpTokenPair,
+                    collateral: collateral,
+                    borrowable: borrowable,
+                    recipient: msg.sender,
+                    redeemTokens: cygLPAmount,
+                    usdAmountMin: usdAmountMin,
+                    dexAggregator: dexAggregator,
+                    swapdata: swapdata
+                })
+            );
+    }
+
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     //  BORROW ───────────────────────────────────────
@@ -523,8 +590,7 @@ abstract contract CygnusAltair is ICygnusAltair {
             // Set allowance using permit
             IAllowanceTransfer(PERMIT2).permit(
                 // The owner of the tokens being approved.
-                // We only allow the owner of the tokens to be the depositor, but
-                // recipient can be set to another address if owner wants
+                // We only allow the owner of the tokens to be the repayer
                 msg.sender,
                 // Data signed over by the owner specifying the terms of approval
                 _permit,
@@ -617,8 +683,7 @@ abstract contract CygnusAltair is ICygnusAltair {
             // Set allowance using permit
             IAllowanceTransfer(PERMIT2).permit(
                 // The owner of the tokens being approved.
-                // We only allow the owner of the tokens to be the depositor, but
-                // recipient can be set to another address if owner wants
+                // We only allow the owner of the tokens to be the liquidator
                 msg.sender,
                 // Data signed over by the owner specifying the terms of approval
                 _permit,
@@ -755,21 +820,30 @@ abstract contract CygnusAltair is ICygnusAltair {
         // Get redeem amount
         uint256 redeemAmount = cygLPAmount.mulWad(exchangeRate);
 
-        // Encode redeem data
-        bytes memory redeemData = abi.encode(
-            AltairDeleverageCalldata({
-                lpTokenPair: lpTokenPair,
-                collateral: collateral,
-                borrowable: borrowable,
-                recipient: msg.sender,
-                redeemTokens: cygLPAmount,
-                usdAmountMin: usdAmountMin,
-                dexAggregator: dexAggregator,
-                swapdata: swapdata
-            })
+        // Encode data to bytes
+        bytes memory redeemData = _createDeleverageShuttle(
+            lpTokenPair,
+            collateral,
+            borrowable,
+            cygLPAmount,
+            usdAmountMin,
+            dexAggregator,
+            swapdata
         );
 
         // Flash redeem LP Tokens
         ICygnusCollateral(collateral).flashRedeemAltair(lpTokenPair, redeemAmount, redeemData);
+    }
+
+    //
+    // Admin only
+    //
+
+    /**
+     *  @notice Update the name to easily identify
+     */
+    function setName(string memory _name) external {
+        if (msg.sender != hangar18.admin()) revert("Only admin");
+        name = _name;
     }
 }

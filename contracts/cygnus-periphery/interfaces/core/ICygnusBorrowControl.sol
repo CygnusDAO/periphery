@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  ICygnusBorrowControl.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Dependencies
@@ -27,12 +44,12 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     /**
      *  @dev Logs when a new contract is set that rewards users in CYG
      *
-     *  @param oldBorrowRewarder The address of the borrow rewarder up until this point used for CYG distribution
-     *  @param newBorrowRewarder The address of the new borrow rewarder
+     *  @param oldRewarder The address of the rewarder up until this point used for CYG distribution
+     *  @param newRewarder The address of the new rewarder
      *
      *  @custom:event NewCygnusBorrowRewarder
      */
-    event NewCygnusBorrowRewarder(address oldBorrowRewarder, address newBorrowRewarder);
+    event NewCygnusIndustialComplex(address oldRewarder, address newRewarder);
 
     /**
      *  @dev Logs when a new reserve factory is set by admin
@@ -75,9 +92,9 @@ interface ICygnusBorrowControl is ICygnusTerminal {
     function collateral() external view returns (address);
 
     /**
-     *  @return cygnusBorrowRewarder Address of the contract that rewards borrowers in CYG (or other)
+     *  @return cygnusIndustialComplex Address of the contract that rewards both borrowers and lenders in CYG
      */
-    function cygnusBorrowRewarder() external view returns (address);
+    function cygnusIndustialComplex() external view returns (address);
 
     // ───────────────────────────── Current pool rates
 
@@ -111,11 +128,6 @@ interface ICygnusBorrowControl is ICygnusTerminal {
      */
     function reserveFactor() external view returns (uint256);
 
-    /**
-     *  @return exchangeRateStored The exchange rate used to mint reserves
-     */
-    function exchangeRateStored() external view returns (uint256);
-
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -130,7 +142,7 @@ interface ICygnusBorrowControl is ICygnusTerminal {
      *
      *  @custom:security only-admin
      */
-    function setCygnusBorrowRewarder(address newBorrowRewarder) external;
+    function setCygnusIndustialComplex(address newBorrowRewarder) external;
 
     /**
      *  @notice Admin 👽

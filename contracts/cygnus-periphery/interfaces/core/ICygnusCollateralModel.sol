@@ -1,4 +1,21 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  ICygnusCollateralModel.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Dependencies
@@ -75,6 +92,7 @@ interface ICygnusCollateralModel is ICygnusCollateralControl {
      *
      *  @param borrower The address of the borrower
      *
+     *  @return cygLPBalance The user's balance of collateral (CygLP)
      *  @return principal The original loaned USDC amount (without interest)
      *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
      *  @return price The current LP price
@@ -83,7 +101,17 @@ interface ICygnusCollateralModel is ICygnusCollateralControl {
      */
     function getBorrowerPosition(
         address borrower
-    ) external view returns (uint256 principal, uint256 borrowBalance, uint256 price, uint256 positionUsd, uint256 health);
+    )
+        external
+        view
+        returns (
+            uint256 cygLPBalance,
+            uint256 principal,
+            uint256 borrowBalance,
+            uint256 price,
+            uint256 positionUsd,
+            uint256 health
+        );
 
     /**
      *  @notice Check if a borrower can borrow a specified amount of an asset from CygnusBorrow.

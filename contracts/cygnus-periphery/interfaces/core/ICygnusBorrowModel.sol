@@ -1,11 +1,29 @@
-// SPDX-License-Identifier: Unlicense
+//  SPDX-License-Identifier: AGPL-3.0-or-later
+//
+//  ICygnusBorrowModel.sol
+//
+//  Copyright (C) 2023 CygnusDAO
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU Affero General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU Affero General Public License for more details.
+//
+//  You should have received a copy of the GNU Affero General Public License
+//  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
 // Dependencies
 import {ICygnusBorrowControl} from "./ICygnusBorrowControl.sol";
 
 /**
- *  @notice Interface for the borrow model
+ *  @title ICygnusBorrowModel
+ *  @notice Interface for the Borrowable's model which takes into account interest accruals and borrow snapshots
  */
 interface ICygnusBorrowModel is ICygnusBorrowControl {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -18,10 +36,16 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
      *  @param cashStored Total balance of this lending pool's asset (USDC)
      *  @param totalBorrowsStored Total borrow balances of this lending pool
      *  @param interestAccumulated Interest accumulated since last accrual
+     *  @param reservesAdded The amount of CygUSD minted to the DAO
      *
      *  @custom:event AccrueInterest
      */
-    event AccrueInterest(uint256 cashStored, uint256 totalBorrowsStored, uint256 interestAccumulated);
+    event AccrueInterest(
+        uint256 cashStored,
+        uint256 totalBorrowsStored,
+        uint256 interestAccumulated,
+        uint256 reservesAdded
+    );
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -51,7 +75,6 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
 
     /**
      *  @notice This public view function is used to get the borrow balance of users based on stored data
-     *  @notice It is used by CygnusCollateral and CygnusCollateralModel contracts
      *
      *  @param borrower The address whose balance should be calculated
      *
@@ -76,19 +99,24 @@ interface ICygnusBorrowModel is ICygnusBorrowControl {
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
-    /*  ─────────────────────────────────────────────── Public ────────────────────────────────────────────────  */
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
      *  @notice Applies interest accruals to borrows and reserves (uses 1 memory slot per accrual)
      */
     function accrueInterest() external;
 
-    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
-
     /**
-     *  @notice Tracks borrows of each user for farming rewards and passes the borrow data back to the CYG Rewarder
+     *  @notice Manually track the user's borrows
      *
-     *  @param borrower Address of borrower
+     *  @param borrower The address of the borrower
      */
     function trackBorrower(address borrower) external;
+
+    /**
+     *  @notice Manually track the lender's CygUSD balance
+     *
+     *  @param lender The address of the lender
+     */
+    function trackLender(address lender) external;
 }
