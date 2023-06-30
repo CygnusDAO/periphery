@@ -78,7 +78,7 @@ quote from the DEX aggregators. See the function argument `DexAggregator dexAggr
         // Approve 1Inch Router in `srcToken` if necessary
         _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
 
-        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        // Call the router constant
         (bool success, bytes memory resultData) = ONE_INCH_ROUTER_V5.call{ value: msg.value }(swapdata);
 
         /// @custom:error OneInchTransactionFailed
@@ -89,7 +89,6 @@ quote from the DEX aggregators. See the function argument `DexAggregator dexAggr
             amountOut := mload(add(resultData, 32))
         }
     }
-
 ```
 
 <hr />
