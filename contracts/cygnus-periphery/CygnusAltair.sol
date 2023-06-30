@@ -339,7 +339,7 @@ abstract contract CygnusAltair is ICygnusAltair {
         // Approve 1Inch Router in `srcToken` if necessary
         _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
 
-        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        // Call the One Inch V5 router with the whole data from the swap api
         (bool success, bytes memory resultData) = ONE_INCH_ROUTER_V5.call{value: msg.value}(swapdata);
 
         /// @custom:error OneInchTransactionFailed
