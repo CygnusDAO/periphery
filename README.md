@@ -133,9 +133,10 @@ function _swapTokensParaswap(
 ```
 
 <hr />
+
 **0xProject Integration**
 
-<img src="https://github.com/CygnusDAO/periphery/assets/97303883/920ae004-fb5f-47be-9fcc-830c738c4cf5" alt="zeroex">
+<img src="https://coincentral.com/wp-content/uploads/2018/01/0x-874x437.png" alt="zeroex">
 
 ```solidity
 /**
