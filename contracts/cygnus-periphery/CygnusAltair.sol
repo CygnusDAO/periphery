@@ -63,21 +63,35 @@ import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/aggregato
 /**
  *  @title  CygnusAltair Periphery contract to interact with Cygnus Core contracts
  *  @author CygnusDAO
- *  @notice The router contract that is used to interact with Cygnus core contracts.
+ *  @notice The base periphery contract that is used to interact with Cygnus Core contracts. Aside from
+ *          depositing and withdrawing from the core contracts, users should always use this router
+ *          (or a similar implementation) to interact wtih the core contracts. It is integrated with Uniswap's
+ *          Permit2 and allows users to interact with Cygnus Core without ever giving any allowance ot this
+ *          router (can borrow, repay, leverage, deleverage and liquidate using the Permit functions).
  *
- *          This router is integrated with Paraswap's Augustus Swapper and 1inch's AggregationRouter5 across all
- *          chains, and it works mostly on-chain. The queries are estimated before the first call, following the
- *          same logic for swaps as this contract and then each proceeding call builds on top of the next one.
+ *          Leverage   = Borrow USDC from the borrowable and use it to mint more collateral (Liquidity Tokens)
+ *          Deleverage = Redeem collateral (Liquidity Tokens) and sell the assets for USDC to repay the loan
+ *                       or just to convert all your liquidity to USDC in 1 step.
  *
- *          During the leverage functionality the router borrows USD from the borrowable arm contract, and then
- *          converts it to LP Tokens. What this router does is account for every possible swap scenario between
- *          tokens, using a byte array populated with 1inch data. Before the leverage or de-leverage function call,
- *          we calculate quotes to estimate what the `amount` will be during each swap stage, and we use the data
- *          passed from each step and override the `amount` with the current balance of this contract (both amounts
- *          should be the same, or in some cases could be off by a very small amount).
+ *          As such, using a dex aggregator is crucial to make our system work. This router is integrated with
+ *          the following aggregators to make sure that slippage is minimal between the borrowed USDC and the
+ *          minted LP:
+ *            1. 0xProject
+ *            2. 1Inch (Legacy and Optmiized Routers)
+ *            3. Paraswap
  *
- *          The max amount of aggswaps that we can perform during a leverage is 1 and de-leverage is 2. Thus the data
- *          passed will always be at most a 2-length byte array.
+ *          During the leverage functionality the router borrows USD from the borrowable arm contract, and
+ *          then converts it to LP Tokens. Since each liquidity token requires different logic to "mint".,
+ *          for example, minting an LP from UniswapV2 is different to minting a BPT from Balancer or UniswapV3,
+ *          the router delegates the call to an extension contract to mint the liquidity token.
+ *
+ *          During the deleverage functionality the router receives Liquidity Tokens from the collateral arm
+ *          contract, and then converts it to USDC. Again, since the process of burning or redeeming the liquidity
+ *          token requires different logic across DEXes, this contract delegates the redeem call to the extensions
+ *          in the fallback.
+ *
+ *          The admin is in charge of setting up the extension contracts and these are updatable, however this is
+ *          the only contract that users should interact with.
  *
  *          Functions in this contract allow for:
  *            - Borrowing USD
@@ -134,6 +148,7 @@ contract CygnusAltair is ICygnusAltair {
      *  @inheritdoc ICygnusAltair
      */
     string public override name = string(abi.encodePacked("Cygnus: Altair Router #", block.chainid));
+
     /**
      *  @inheritdoc ICygnusAltair
      */
@@ -204,10 +219,10 @@ contract CygnusAltair is ICygnusAltair {
         (bool success, bytes memory data) = altairX.delegatecall(msg.data);
 
         // Revert with extension reason
-        if (!success) _revertWithData(data);
+        if (!success) _extensionRevert(data);
 
         // Return the return value from leverage/deleverage/flash liqudiate
-        _returnWithData(data);
+        _extensionReturn(data);
     }
 
     /**
@@ -234,6 +249,26 @@ contract CygnusAltair is ICygnusAltair {
     /*  ────────────────────────────────────────────── Internal ───────────────────────────────────────────────  */
 
     /**
+     *  @notice Reverts with reason if the delegate call fails
+     */
+    function _extensionRevert(bytes memory data) internal pure {
+        /// @solidity memory-safe-assembly
+        assembly {
+            revert(add(data, 32), mload(data))
+        }
+    }
+
+    /**
+     *  @notice Returns the returned data from the delegate call
+     */
+    function _extensionReturn(bytes memory data) internal pure {
+        /// @solidity memory-safe-assembly
+        assembly {
+            return(add(data, 32), mload(data))
+        }
+    }
+
+    /**
      *  @notice The current block timestamp
      */
     function _checkTimestamp() internal view returns (uint256) {
@@ -247,24 +282,6 @@ contract CygnusAltair is ICygnusAltair {
     function _checkDeadline(uint256 deadline) internal view {
         /// @custom:error TransactionExpired Avoid transacting past deadline
         if (_checkTimestamp() > deadline) revert CygnusAltair__TransactionExpired();
-    }
-
-    /**
-     *  @notice Reverts with reason if the delegate call fails
-     */
-    function _revertWithData(bytes memory data) internal pure {
-        assembly {
-            revert(add(data, 32), mload(data))
-        }
-    }
-
-    /**
-     *  @notice Returns the returned data from the delegate call
-     */
-    function _returnWithData(bytes memory data) internal pure {
-        assembly {
-            return(add(data, 32), mload(data))
-        }
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
@@ -398,9 +415,9 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @notice Creates the swap with 1Inch's AggregatorV5. We update the `desc.amount` traded of `srcToken by our contract's
      *          current balance of the token. This is only available using 1Inch's legacy `swap` method but can be helpful when
-     *          we know that we are going to be receiving AT LEAST X amount of token, and the amount received is off by some 
+     *          we know that we are going to be receiving AT LEAST X amount of token, and the amount received is off by some
      *          mini tokens. It can help us not leave any dust behind and make full use of the funds.
-     *  @dev The API call is created with the param `&compatibilityMode=true` 
+     *  @dev The API call is created with the param `&compatibilityMode=true`
      *  @param swapdata The data from 1inch `swap` query
      *  @param srcToken The token being swapped
      *  @param srcAmount The amount of `srcToken` being swapped
@@ -888,8 +905,8 @@ contract CygnusAltair is ICygnusAltair {
     // ADMIN
 
     /**
-     *  @notice Updates the mapping of borrowable/collateral/lp token => extension
-     *  @custom:security only-admin 👽
+     *  @notice Initializes the mapping of borrowable/collateral/lp token => extension
+     *  @custom:security only-admin
      */
     function setAltairExtension(uint256 shuttleId, address extension) external override {
         // Get latest admin
@@ -919,7 +936,14 @@ contract CygnusAltair is ICygnusAltair {
         // For deleveraging the LP
         altairExtensions[collateral] = extension;
 
-        // For getting the assets for a a given amount of shares
+        // For getting the assets for a a given amount of shares:
+        //
+        // asset received = shares_burnt * asset_balance / vault_token_supply
+        //
+        // Calling `getAssetsForShares(underlying, amount)` returns two arrays: `tokens` and `amounts`. The
+        // extensions handle this logic since it differs per underlying Liquidity Token. For example, returning
+        // assets by burning 1 LP in UniV2, or 1 BPT in a Balancer Weighted Pool, etc. Helpful when deleveraging
+        // liquidity tokens into USDC.
         altairExtensions[ICygnusCollateral(collateral).underlying()] = extension;
     }
 }
