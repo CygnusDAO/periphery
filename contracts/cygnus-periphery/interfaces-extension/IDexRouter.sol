@@ -12,6 +12,21 @@ interface IDexRouter {
         uint256
     ) external returns (uint[] memory amounts);
 
+    struct Route {
+        address from;
+        address to;
+        bool stable;
+        address factory;
+    }
+
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        Route[] calldata routes,
+        address to,
+        uint256 deadline
+    ) external returns (uint256[] memory);
+
     function addLiquidity(
         address tokenA,
         address tokenB,

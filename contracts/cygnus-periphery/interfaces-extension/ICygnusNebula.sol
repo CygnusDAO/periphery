@@ -1,6 +1,6 @@
 //  SPDX-License-Identifier: AGPL-3.0-or-later
 //
-//  ICygnusTerminal.sol
+//  ICygnusNebula.sol
 //
 //  Copyright (C) 2023 CygnusDAO
 //
@@ -16,13 +16,19 @@
 //
 //  You should have received a copy of the GNU Affero General Public License
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
-pragma solidity >=0.8.17;
-
-// Dependencies
-import {IERC20Permit} from "./IERC20Permit.sol";
+pragma solidity ^0.8.17;
 
 /**
- *  @title ICygnusTerminal
- *  @notice The interface to mint/redeem pool tokens (CygLP and CygUSD)
+ *  @title ICygnusNebula Interface to interact with Cygnus' LP Oracle
+ *  @author CygnusDAO
  */
-interface ICygnusTerminal is IERC20Permit {}
+interface ICygnusNebula {
+    /**
+     *  @notice Gets the latest price of the LP Token's token0 and token1 denominated in denomination token
+     *  @notice Used by Cygnus Altair contract to calculate optimal amount of leverage
+     *
+     *  @param lpTokenPair The address of the LP Token
+     *  @return Array of the LP's asset prices
+     */
+    function assetPricesUsd(address lpTokenPair) external view returns (uint256[] memory);
+}

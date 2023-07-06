@@ -18,102 +18,36 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
-// Dependencies
-import "./ICygnusAltairCall.sol";
-
 // Interfaces
 import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
-
-// 1Inch
-import {IAggregationRouterV5} from "./IAggregationRouterV5.sol";
+import {IWrappedNative} from "./IWrappedNative.sol";
 
 // Permit2
 import {IAllowanceTransfer} from "./core/IAllowanceTransfer.sol";
-import {ISignatureTransfer} from "./ISignatureTransfer.sol";
+import {ISignatureTransfer} from "./core/ISignatureTransfer.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
  */
-interface ICygnusAltair is ICygnusAltairCall {
+interface ICygnusAltair {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @dev Reverts when the underlying is not native (WETH)
-     *
-     *  @param poolToken The address of the token that is not native to the network
-     *
-     *  @custom:error NotnativeTokenSender
-     */
-    error CygnusAltair__NotNativeTokenSender(address poolToken);
-
-    /**
      *  @dev Reverts when the current block.timestamp is past deadline
-     *
-     *  @param deadline The timestamp after which the transaction is considered expired
      *
      *  @custom:error TransactionExpired
      */
-    error CygnusAltair__TransactionExpired(uint256 deadline);
-
-    /**
-     *  @dev Reverts when the msg sender is not the router in the leverage function
-     *
-     *  @param sender The address of the message sender
-     *  @param origin The address of the original message sender
-     *
-     *  @custom:error MsgSenderNotRouter
-     */
-    error CygnusAltair__MsgSenderNotRouter(address sender, address origin);
-
-    /**
-     *  @dev Reverts when the msg sender is not the borrow contract
-     *
-     *  @param sender The address of the message sender
-     *  @param borrowable The address of the borrow contract
-     *
-     *  @custom:error MsgSenderNotBorrowable
-     */
-    error CygnusAltair__MsgSenderNotBorrowable(address sender, address borrowable);
-
-    /**
-     *  @dev InvalidRedeemAmount Reverts when the redeem amount is 0 or less
-     *
-     *  @param redeemer The address of the user who attempted to redeem
-     *  @param redeemTokens The amount of tokens the user attempted to redeem
-     *
-     *  @custom:error InvalidRedeemAmount
-     */
-    error CygnusAltair__InvalidRedeemAmount(address redeemer, uint256 redeemTokens);
-
-    /**
-     *  @dev Reverts when the msg sender is not the collateral contract
-     *
-     *  @param sender The address of the message sender
-     *  @param collateral The address of the collateral contract
-     *
-     *  @custom:error MsgSenderNotCollateral
-     */
-    error CygnusAltair__MsgSenderNotCollateral(address sender, address collateral);
+    error CygnusAltair__TransactionExpired();
 
     /**
      *  @dev Reverts when the msg sender is not the cygnus factory admin
      *
-     *  @param sender The address of the message sender
-     *  @param admin The address of the Cygnus factory admin
-     *
      *  @custom:error MsgSenderNotAdmin
      */
-    error CygnusAltair__MsgSenderNotAdmin(address sender, address admin);
-
-    /**
-     *  @dev Reverts when initializing an orbiter that doesn't exist
-     *
-     *  @custom:error OrbitersNotActive
-     */
-    error CygnusAltairY__OrbitersNotActive();
+    error CygnusAltair__MsgSenderNotAdmin();
 
     /**
      *  @dev Reverts when the paraswap transaction fails
@@ -137,25 +71,18 @@ interface ICygnusAltair is ICygnusAltairCall {
     error CygnusAltair__0xProjectTransactionFailed();
 
     /**
-     *  @dev Reverts when USD amount received is less than minimum asked while liquidating
+     *  @dev Reverts if an extension has not been set for the borrowable or collateral
      *
-     *  @custom:error InsufficientLiquidateUsd
+     *  @custom:error AltairXDoesNotExist
      */
-    error CygnusAltair__InsufficientLiquidateUsd();
+    error CygnusAltair__AltairXDoesNotExist();
 
     /**
-     *  @dev Reverts when amount of USD received is less than the minimum asked
+     *  @dev Reverts if the shuttle does not exist when initializing an extension for it
      *
-     *  @custom:error InsufficientUSDAmount
+     *  @custom:erro ShuttleDoesNotExist
      */
-    error CygnusAltair__InsufficientUSDAmount();
-
-    /**
-     *  @dev Reverts when the swapped amount is less than the min requested
-     *
-     *  @custom:error InsufficientLPTokenAmount
-     */
-    error CygnusAltair__InsufficientLPTokenAmount();
+    error CygnusAltair__ShuttleDoesNotExist();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -163,8 +90,10 @@ interface ICygnusAltair is ICygnusAltairCall {
 
     /**
      *  @notice Enum for choosing dex aggregators to perform leverage, deleverage and liquidations
-     *  @custom:member PARASWAP Pass 0 to use Paraswap
-     *  @custom:member ONE_INCH Pass 1 to use 1Inch
+     *  @custom:member PARASWAP Pass 0 to use Paraswap (most gas efficient)
+     *  @custom:member ONE_INCH Pass 1 to use 1Inch legacy (using the `swap` function)
+     *  @custom:member ONE_INCH Pass 2 to use 1Inch optimized routers (unoswap, uniswapv3, etc. - This can be the most gas consuming)
+     *  @custom:member OxProject Pass 3 to use 0xProject/Matcha API
      */
     enum DexAggregator {
         PARASWAP,
@@ -234,9 +163,9 @@ interface ICygnusAltair is ICygnusAltairCall {
     }
 
     /**
-     *  @return name The human readable name this router is for
+     *  @notice Array of all initialized extensions
      */
-    function name() external view returns (string memory);
+    function allExtensions(uint256 index) external view returns (address);
 
     /**
      *  @return PERMIT Uniswap's Permit2 router
@@ -258,6 +187,12 @@ interface ICygnusAltair is ICygnusAltairCall {
      */
     function OxPROJECT_EXCHANGE_PROXY() external pure returns (address);
 
+
+    /**
+     *  @return name The human readable name this router is for
+     */
+    function name() external view returns (string memory);
+
     /**
      *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
      */
@@ -271,19 +206,37 @@ interface ICygnusAltair is ICygnusAltairCall {
     /**
      *  @return nativeToken The address of the native token on this chain (ie. WETH)
      */
-    function nativeToken() external view returns (address);
+    function nativeToken() external view returns (IWrappedNative);
 
     /**
-     *  @dev Retrieves the assets corresponding to a given number of shares in a MetastablePool.
-     *  @param underlying The address of the underlying MetastablePool.
-     *  @param shares The number of shares to calculate assets for.
-     *  @return tokens An array of asset token addresses.
-     *  @return amounts An array of asset token amounts.
+     *  @notice Returns the altair extension for a borrowable or collateral contract
+     *  @param poolToken The address of a Cygnus borrowable or collateral or an lp token pair
+     *  @return The address of the extension
+     */
+    function getAltairExtension(address poolToken) external view returns (address);
+
+    /**
+     *  @return altairExtensionsLength How many extensions we have added to the router so far
+     */
+    function altairExtensionsLength() external view returns (uint256);
+
+    /**
+     *  @dev Returns the assets and amounts received by redeeming a given amount of underlying liquidity tokens.
+     *  @param underlying The address of the underlying liquidity token (e.g., LP token or Balancer BPT).
+     *  @param shares The amount of underlying liquidity tokens to redeem.
+     *  @return tokens An array of addresses representing the received tokens.
+     *  @return amounts An array of corresponding amounts received by redeeming the liquidity tokens.
      */
     function getAssetsForShares(
         address underlying,
         uint256 shares
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
+
+    /**
+     *  @dev Returns whether an extension is set or not
+     *  @param extension The addres of CygnusAltairX
+     */
+    function isExtension(address extension) external returns (bool);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
@@ -447,7 +400,7 @@ interface ICygnusAltair is ICygnusAltairCall {
         bytes calldata permitData,
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
-    ) external;
+    ) external returns (uint256);
 
     /**
      *  @notice Main deleverage function
@@ -471,38 +424,13 @@ interface ICygnusAltair is ICygnusAltairCall {
         bytes calldata permitData,
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
-    ) external;
+    ) external returns (uint256);
 
     /**
-     *  @notice Function that is called by the CygnusBorrow contract and decodes data to carry out the leverage
-     *  @notice Will only succeed if: Caller is borrow contract & Borrow contract was called by router
-     *  @param sender Address of the contract that initialized the borrow transaction (address of the router)
-     *  @param borrowAmount The amount to leverage
-     *  @param data The encoded byte data passed from the CygnusBorrow contract to the router
+     *  @notice Initializes an extnesion of the router and maps it to a borrowable/collateral/lp token
+     *  @param shuttleId the ID of the lending pool
+     *  @param extension The address of the extension
+     *  @custom:security only-admin
      */
-    function altairBorrow_O9E(address sender, uint256 borrowAmount, bytes calldata data) external override(ICygnusAltairCall);
-
-    /**
-     *  @notice Function that is called by the CygnusCollateral contract and decodes data to carry out the deleverage
-     *  @notice Will only succeed if: Caller is collateral contract & collateral contract was called by router
-     *  @param sender Address of the contract that initialized the redeem transaction (address of the router)
-     *  @param redeemAmount The amount to deleverage
-     *  @param data The encoded byte data passed from the CygnusCollateral contract to the router
-     */
-    function altairRedeem_u91A(address sender, uint256 redeemAmount, bytes calldata data) external override(ICygnusAltairCall);
-
-    /**
-     *  @notice Function that is called by the CygnusBorrow contract and decodes data to carry out the liquidation
-     *  @notice Will only succeed if: Caller is borrow contract & Borrow contract was called by router
-     *  @param sender Address of the contract that initialized the borrow transaction (address of the router)
-     *  @param cygLPAmount The cygLP Amount seized
-     *  @param actualRepayAmount The usd amount the contract must have for the liquidate function to finish
-     *  @param data The encoded byte data passed from the CygnusBorrow contract to the router
-     */
-    function altairLiquidate_f2x(
-        address sender,
-        uint256 cygLPAmount,
-        uint256 actualRepayAmount,
-        bytes calldata data
-    ) external override(ICygnusAltairCall);
+    function setAltairExtension(uint256 shuttleId, address extension) external;
 }
