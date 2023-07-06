@@ -6,6 +6,7 @@
 | Upgraded to use Uniswap's Permit2 and allow Flash Liquidations | (30/05/2023) |
 | Integrated with Paraswap's router                              | (15/06/2023) |
 | Integrated with 0xProject's Swap API                           | (30/06/2023) |
+| Added Fallback function for each extension                     | (06/07/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
