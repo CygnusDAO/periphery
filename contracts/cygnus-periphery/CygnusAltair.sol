@@ -396,12 +396,14 @@ contract CygnusAltair is ICygnusAltair {
     // Swap tokens via 1inch legacy (aka `swap` method)
 
     /**
-     *  @notice Creates the swap with 1Inch's AggregatorV5. We pass an extra param `updatedAmount` to eliminate
-     *          any slippage from the byte data passed. When calculating the optimal deposit for single sided
-     *          liquidity deposit, our calculation can be off for a few mini tokens which don't affect the
-     *          data of the aggregation executor, so we pass the tx data as is but update the srcToken amount
+     *  @notice Creates the swap with 1Inch's AggregatorV5. We update the `desc.amount` traded of `srcToken by our contract's
+     *          current balance of the token. This is only available using 1Inch's legacy `swap` method but can be helpful when
+     *          we know that we are going to be receiving AT LEAST X amount of token, and the amount received is off by some 
+     *          mini tokens. It can help us not leave any dust behind and make full use of the funds.
+     *  @dev The API call is created with the param `&compatibilityMode=true` 
      *  @param swapdata The data from 1inch `swap` query
-     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @param srcToken The token being swapped
+     *  @param srcAmount The amount of `srcToken` being swapped
      *  @return amountOut The amount received of destination token
      */
     function _swapTokensOneInchV1(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
@@ -425,22 +427,24 @@ contract CygnusAltair is ICygnusAltair {
     // Swap tokens via 1inch optimized routers
 
     /**
-     *  @notice Creates the swap with 1Inch's AggregatorV5 using the router's latest paths (unoswap, uniswapv3, etc.)
+     *  @notice Creates the swap with 1Inch's AggregatorV5 using the router's optimized paths (unoswap, uniswapv3, etc.). Same as above
+     *          except we don't update the srcAmount.
      *  @param swapdata The data from 1inch `swap` query
-     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @param srcToken The token being swapped
+     *  @param srcAmount The amount of `srcToken` being swapped
      *  @return amountOut The amount received of destination token
      */
     function _swapTokensOneInchV2(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
         // Approve 1Inch Router in `srcToken` if necessary
         _approveToken(srcToken, address(ONE_INCH_ROUTER_V5), srcAmount);
 
-        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        // Call 1Inch's Aggregation Router V5 with the data passed
         (bool success, bytes memory resultData) = ONE_INCH_ROUTER_V5.call{value: msg.value}(swapdata);
 
         /// @custom:error OneInchTransactionFailed
         if (!success) revert CygnusAltair__OneInchTransactionFailed();
 
-        // Return amount received
+        // Return amount received of dstToken
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -458,13 +462,13 @@ contract CygnusAltair is ICygnusAltair {
         // Approve 0x Exchange Proxy Router in `srcToken` if necessary
         _approveToken(srcToken, address(OxPROJECT_EXCHANGE_PROXY), srcAmount);
 
-        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        // Call the exchange proxy with the data passed
         (bool success, bytes memory resultData) = OxPROJECT_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
 
         /// @custom:error 0xProjectTransactionFailed
         if (!success) revert CygnusAltair__0xProjectTransactionFailed();
 
-        // Return amount received
+        // Return amount received of dstToken
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -884,8 +888,8 @@ contract CygnusAltair is ICygnusAltair {
     // ADMIN
 
     /**
-     *  @notice Initializes the mapping of borrowable/collateral/lp token => extension
-     *  @custom:security only-admin
+     *  @notice Updates the mapping of borrowable/collateral/lp token => extension
+     *  @custom:security only-admin 👽
      */
     function setAltairExtension(uint256 shuttleId, address extension) external override {
         // Get latest admin
