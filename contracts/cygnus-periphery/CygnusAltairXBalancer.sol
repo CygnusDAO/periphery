@@ -32,7 +32,7 @@
                       ░░░░░░    ░░░░░░      -------=========*             🛰️         .                     ⠀
            .                            .🛰️       .          .            .                         🛰️ .             .⠀
     
-        CYGNUS ALTAIR EXTENSION - `Velodrome Volatile Pools`                                                           
+        CYGNUS ALTAIR EXTENSION - `Balancer Weighted Pools`                                                           
     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  */
 pragma solidity >=0.8.17;
 
@@ -63,9 +63,9 @@ import {IVault} from "./interfaces-extension/IVault.sol";
 import {IWeightedPool} from "./interfaces-extension/IWeightedPool.sol";
 
 /**
- *  @title  CygnusAltairX Extension for Velodrome Volatile LPs
+ *  @title  CygnusAltairX Extension for Balancer Weighted Pools.
  *  @author CygnusDAO
- *  @notice Router that is used to leverage, deleverage and flash liquidate Velo positions.
+ *  @notice Router that is used to leverage, deleverage and flash liquidate Balancer positions.
  */
 contract CygnusAltairX is ICygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
