@@ -44,7 +44,7 @@ quote from the DEX aggregators. See the function argument `DexAggregator dexAggr
      *  @param srcAmount The balanceOf this contract`s srcToken
      *  @return amountOut The amount received of destination token
      */
-    function swapTokensOneInchV1Private(
+    function _swapTokensOneInchV1(
         bytes memory swapdata,
         address srcToken,
         uint256 srcAmount
@@ -72,7 +72,7 @@ quote from the DEX aggregators. See the function argument `DexAggregator dexAggr
      *  @param srcAmount The balanceOf this contract`s srcToken
      *  @return amountOut The amount received of destination token
      */
-    function swapTokensOneInchV2Private(
+    function _swapTokensOneInchV2(
         bytes memory swapdata,
         address srcToken,
         uint256 srcAmount
@@ -113,7 +113,7 @@ function _swapTokensParaswap(
     bytes memory swapData,
     address srcToken,
     uint256 fromAmount
-) private returns (uint256 amountOut) {
+) internal returns (uint256 amountOut) {
     // Paraswap's token proxy to approve in srcToken
     address paraswapTransferProxy = IAugustusSwapper(PARASWAP_AUGUSTUS_SWAPPER_V5).getTokenTransferProxy();
 
@@ -147,7 +147,7 @@ function _swapTokensParaswap(
  *  @param srcAmount The balanceOf this contract`s srcToken
  *  @return amountOut The amount received of destination token
  */
-function swapTokens0xProjectPrivate(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+function _swapTokens0xProject(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
     // Approve 1Inch Router in `srcToken` if necessary
     _approveToken(srcToken, address(OxPROJECT_EXCHANGE_PROXY), srcAmount);
 
