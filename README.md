@@ -177,7 +177,7 @@ function _swapTokens0xProject(bytes memory swapdata, address srcToken, uint256 s
  *  @param srcAmount The balanceOf this contract`s srcToken
  *  @return amountOut The amount received of destination token
  */
-function _swapTokensOpeanOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
+function _swapTokensOpenOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
     // Approve 0x Exchange Proxy Router in `srcToken` if necessary
     _approveToken(srcToken, OPEN_OCEAN_EXCHANGE_PROXY, srcAmount);
 
