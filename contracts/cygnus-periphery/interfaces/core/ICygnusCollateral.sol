@@ -33,6 +33,44 @@ interface ICygnusCollateral is IERC20Permit {
     function exchangeRate() external view returns (uint256);
 
     /**
+     *  @return borrowable The address of the borrowable contract
+     */
+    function borrowable() external view returns (address);
+
+    /**
+     *  @notice Gets the account's total position value in USD (LP Tokens owned multiplied by LP price). It uses the oracle to get the
+     *          price of the LP Token and uses the current exchange rate.
+     *
+     *  @param borrower The address of the borrower
+     *
+     *  @return cygLPBalance The user's balance of collateral (CygLP)
+     *  @return principal The original loaned USDC amount (without interest)
+     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
+     *  @return price The current liquidity token price
+     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
+     *  @return positionLp The borrower`s position in LP Tokens
+     *  @return rate The current exchange rate between CygLP and LP Token
+     *  @return health The user's current loan health (once it reaches 100% the user becomes liquidatable)
+     */
+    function getBorrowerPosition(
+        address borrower
+    )
+        external
+        view
+        returns (
+            uint256 cygLPBalance,
+            uint256 principal,
+            uint256 borrowBalance,
+            uint256 price,
+            uint256 positionUsd,
+            uint256 positionLp,
+            uint256 rate,
+            uint256 health,
+            uint256 liquidity,
+            uint256 shortfall
+        );
+
+    /**
      *  @notice This function must be called with the `approve` method of the underlying asset token contract for
      *          the `assets` amount on behalf of the sender before calling this function.
      *  @notice Implements the deposit of the underlying asset into the Cygnus Vault pool. This function transfers

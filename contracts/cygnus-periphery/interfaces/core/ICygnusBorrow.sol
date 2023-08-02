@@ -20,7 +20,7 @@ pragma solidity >=0.8.17;
 
 import {IERC20Permit} from "./IERC20Permit.sol";
 
-interface ICygnusBorrow is IERC20Permit { 
+interface ICygnusBorrow is IERC20Permit {
     /**
      *  @notice This low level function should only be called from `CygnusAltair` contract only
      *
@@ -47,6 +47,15 @@ interface ICygnusBorrow is IERC20Permit {
     function liquidate(address borrower, address receiver, uint256 repayAmount, bytes calldata data) external returns (uint256 usdAmount);
 
     /**
+     *  @notice Get the lender`s full position
+     *  @param lender The address of the lender
+     *  @return cygUsdBalance The `lender's` balance of CygUSD
+     *  @return rate The currente exchange rate
+     *  @return positionInUsd The lender's position in USD
+     */
+    function getLenderPosition(address lender) external view returns (uint256 cygUsdBalance, uint256 rate, uint256 positionInUsd);
+
+    /**
      *  @notice This public view function is used to get the borrow balance of users based on stored data
      *
      *  @param borrower The address whose balance should be calculated
@@ -65,4 +74,45 @@ interface ICygnusBorrow is IERC20Permit {
      *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
      */
     function underlying() external view returns (address);
+
+    /**
+     *  @return collateral The address of this borrowable's collateral
+     */
+    function collateral() external view returns (address);
+
+    /**
+     *  @return supplyRate The current APR for lenders
+     */
+    function supplyRate() external view returns (uint256);
+
+    /**
+     *  @return borrowRate The current per-second borrow rate stored for this pool.
+     */
+    function borrowRate() external view returns (uint48);
+
+    /**
+     *  @return utilizationRate The total amount of borrowed funds divided by the total cash the pool has available
+     */
+    function utilizationRate() external view returns (uint256);
+
+    /**
+     *  @return totalBorrows Total borrows stored in the lending pool
+     */
+    function totalBorrows() external view returns (uint96);
+
+    /**
+     *  @return totalBalance Total USD balance in the pool
+     */
+    function totalBalance() external view returns (uint160);
+
+    /**
+     *  @return exchangeRate The latest exchange rate
+     */
+    function exchangeRate() external view returns (uint256);
+
+    /**
+     *  @notice Syncs the total balance to the underlying balance and accrues interest
+     *  @custom:security non-reentrant
+     */
+    function sync() external;
 }

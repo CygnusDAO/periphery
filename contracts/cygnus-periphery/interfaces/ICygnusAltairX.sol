@@ -147,7 +147,8 @@ interface ICygnusAltairX {
      */
     function getAssetsForShares(
         address underlying,
-        uint256 shares
+        uint256 shares,
+        uint256 slippage
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 

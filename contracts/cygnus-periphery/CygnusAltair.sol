@@ -147,7 +147,12 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public override name = string(abi.encodePacked("Cygnus: Altair Router #", block.chainid));
+    string public override name = "Cygnus: Altair Router";
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    string public constant override version = "1.0.1";
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -167,7 +172,12 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    address public constant override OxPROJECT_EXCHANGE_PROXY = 0xDEF1ABE32c034e558Cdd535791643C58a13aCC10;
+    address public constant override OxPROJECT_EXCHANGE_PROXY = 0xDef1C0ded9bec7F1a1670819833240f027b25EfF;
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    address public constant override OPEN_OCEAN_EXCHANGE_PROXY = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -221,7 +231,7 @@ contract CygnusAltair is ICygnusAltair {
         // Revert with extension reason
         if (!success) _extensionRevert(data);
 
-        // Return the return value from leverage/deleverage/flash liqudiate
+        // Return the return value from leverage/deleverage/flash liquidate
         _extensionReturn(data);
     }
 
@@ -303,11 +313,13 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
+     *  @dev Same calculation as all vault tokens, asset = shares * balance / supply
      *  @inheritdoc ICygnusAltair
      */
     function getAssetsForShares(
         address lpTokenPair,
-        uint256 shares
+        uint256 shares,
+        uint256 slippage
     ) external view returns (address[] memory tokens, uint256[] memory amounts) {
         // Get the extension for this lp token pair
         address altairX = altairExtensions[lpTokenPair];
@@ -317,7 +329,7 @@ contract CygnusAltair is ICygnusAltair {
 
         // The extension should implement the assets for shares function - ie. Which assets and how much we receive
         // by redeeming `shares` amount of a liquidity token
-        return ICygnusAltairX(altairX).getAssetsForShares(lpTokenPair, shares);
+        return ICygnusAltairX(altairX).getAssetsForShares(lpTokenPair, shares, slippage);
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -368,18 +380,18 @@ contract CygnusAltair is ICygnusAltair {
      *  @param borrower The address of the account that is repaying the borrowed amount
      */
     function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal returns (uint256 amount) {
-        // Accrue interest first to not leave debt after full repay
+        // Accrue interest first
         ICygnusBorrow(borrowable).accrueInterest();
 
-        // Get borrow balance of borrower
-        // prettier-ignore
-        (/* principal */, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
+        // Get latest borrow balance of borrower (accrues interest)
+        (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
 
         // Avoid repaying more than borrowedAmount
         amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
     }
 
-    // AGGREGATORS
+    // AGGREGATORS - These are not used by this router, they are kept here for consistency with extensions along with dex aggregator
+    //               addresses.
 
     /**
      *  @notice Creates the swap with Paraswap's Augustus Swapper. We don't update the amount, instead we clean dust at the end.
@@ -491,6 +503,31 @@ contract CygnusAltair is ICygnusAltair {
         }
     }
 
+    // Swap tokens via OpenOcean
+
+    /**
+     *  @notice Creates the swap with OpenOcean's Aggregator API
+     *  @param swapdata The data from OpenOcean`s swap quote query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function _swapTokensOpeanOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
+        // Approve 0x Exchange Proxy Router in `srcToken` if necessary
+        _approveToken(srcToken, OPEN_OCEAN_EXCHANGE_PROXY, srcAmount);
+
+        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        (bool success, bytes memory resultData) = OPEN_OCEAN_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
+
+        /// @custom:error 0xProjectTransactionFailed
+        if (!success) revert CygnusAltair__OpenOceanTransactionFailed();
+
+        // Return amount received
+        assembly {
+            amountOut := mload(add(resultData, 32))
+        }
+    }
+
+
     /**
      *  @dev Internal function to swap tokens using the specified aggregator.
      *  @param dexAggregator The aggregator to use for the token swap
@@ -506,23 +543,27 @@ contract CygnusAltair is ICygnusAltair {
         uint256 srcAmount
     ) internal returns (uint256 amountOut) {
         // Check which dex aggregator to use
-        // Case 1: PARASWAP - Swap tokens using Augustus Swapper V5.
+        // Case 0: PARASWAP - Swap tokens using Augustus Swapper V5.
         if (dexAggregator == DexAggregator.PARASWAP) {
             amountOut = _swapTokensParaswap(swapdata, srcToken, srcAmount);
         }
-        // Case 2: ONE INCH LEGACY - Swap tokens using One Inch's `swap()` function on the
+        // Case 1: ONE INCH LEGACY - Swap tokens using One Inch's `swap()` function on the
         // Aggregation Router V5 contract. Can help control swap params via swapDescription struct.
         // The API call is done with `compatibilityMode=true`
         else if (dexAggregator == DexAggregator.ONE_INCH_LEGACY) {
             amountOut = _swapTokensOneInchV1(swapdata, srcToken, srcAmount);
         }
-        // Case 3: ONE INCH V2 - Swap tokens using One Inch optimized routers - Unoswap, etc.
+        // Case 2: ONE INCH V2 - Swap tokens using One Inch optimized routers - Unoswap, etc.
         else if (dexAggregator == DexAggregator.ONE_INCH_V2) {
             amountOut = _swapTokensOneInchV2(swapdata, srcToken, srcAmount);
         }
-        // Case 4: 0xPROJECT - Swap with matcha/0x swap api with their exchange proxy
+        // Case 3: 0xPROJECT - Swap with matcha/0x swap api with their exchange proxy
         else if (dexAggregator == DexAggregator.OxPROJECT) {
             amountOut = _swapTokens0xProject(swapdata, srcToken, srcAmount);
+        }
+        // Case 4: OPEN_OCEAN - Swap with OpenOcean
+        else if (dexAggregator == DexAggregator.OPEN_OCEAN) {
+            amountOut = _swapTokensOpeanOcean(swapdata, srcToken, srcAmount);
         }
     }
 
@@ -535,7 +576,7 @@ contract CygnusAltair is ICygnusAltair {
      *  @param dexAggregator The dex aggregator to use for the swaps
      *  @param swapdata the aggregator swap data to convert USD to liquidity
      */
-    function _createLeverageShuttle(
+    function _createLeverageData(
         address lpTokenPair,
         address collateral,
         address borrowable,
@@ -568,7 +609,7 @@ contract CygnusAltair is ICygnusAltair {
      *  @param dexAggregator The dex aggregator to use for the swaps
      *  @param swapdata the aggregator swap data to convert USD to liquidity
      */
-    function _createDeleverageShuttle(
+    function _createDeleverageData(
         address lpTokenPair,
         address collateral,
         address borrowable,
@@ -593,7 +634,125 @@ contract CygnusAltair is ICygnusAltair {
             );
     }
 
+    /**
+     *  @notice Flash liquidate data to pass to the borrowable contract
+     *  @param lpTokenPair The address of the LP Token
+     *  @param collateral The address of the collateral of the lending pool
+     *  @param borrowable The address of the borrowable of the lending pool
+     *  @param borrower The address of the borrower to liquidate
+     *  @param amount The amount of USDC being repaid
+     *  @param dexAggregator The dex aggregator to use for the swaps
+     *  @param swapdata the aggregator swap data to convert USD to liquidity
+     */
+    function _createFlashLiquidateData(
+        address lpTokenPair,
+        address collateral,
+        address borrowable,
+        address borrower,
+        uint256 amount,
+        DexAggregator dexAggregator,
+        bytes[] calldata swapdata
+    ) internal view returns (bytes memory) {
+        // Encode data to bytes
+        return
+            abi.encode(
+                AltairLiquidateCalldata({
+                    lpTokenPair: lpTokenPair,
+                    collateral: collateral,
+                    borrowable: borrowable,
+                    borrower: borrower,
+                    recipient: msg.sender,
+                    repayAmount: amount,
+                    dexAggregator: dexAggregator,
+                    swapdata: swapdata
+                })
+            );
+    }
+
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
+    //  POSITIONS ────────────────────────────────────
+
+    /**
+     *  @notice Easier data for frontend and for build tx data
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestLenderPosition(
+        ICygnusBorrow borrowable,
+        address lender
+    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionUsd) {
+        // Accrue interest and update balance
+        borrowable.sync();
+
+        // Return latest position
+        return borrowable.getLenderPosition(lender);
+    }
+
+    /**
+     *  @notice Easier data for frontend and for build tx data
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestBorrowerPosition(
+        ICygnusBorrow borrowable,
+        address borrower
+    )
+        external
+        returns (
+            uint256 cygLPBalance,
+            uint256 principal,
+            uint256 borrowBalance,
+            uint256 price,
+            uint256 rate,
+            uint256 positionUsd,
+            uint256 positionLp,
+            uint256 health,
+            uint256 liquidity,
+            uint256 shortfall
+        )
+    {
+        // Accrue interest and update balance
+        borrowable.sync();
+
+        // Get collateral
+        address collateral = borrowable.collateral();
+
+        // Return borrower`s latest position with accrued interest
+        return ICygnusCollateral(collateral).getBorrowerPosition(borrower);
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestShuttleInfo(
+        ICygnusBorrow borrowable
+    )
+        external
+        returns (uint256 supplyApr, uint256 borrowApr, uint256 util, uint256 totalBorrows, uint256 totalBalance, uint256 exchangeRate)
+    {
+        // Accrue interest and update balance
+        borrowable.sync();
+
+        // For APRs
+        uint256 secondsPerYear = 24 * 60 * 60 * 365;
+
+        // The APR for lenders
+        supplyApr = borrowable.supplyRate() * secondsPerYear;
+
+        // The interest rate for borrowers
+        borrowApr = borrowable.borrowRate() * secondsPerYear;
+
+        // Utilization rate
+        util = borrowable.utilizationRate();
+
+        // Total borrows stored in the contract
+        totalBorrows = borrowable.totalBorrows();
+
+        // Available cash
+        totalBalance = borrowable.totalBalance();
+
+        // The latest exchange rate
+        exchangeRate = borrowable.exchangeRate();
+    }
 
     //  BORROW ───────────────────────────────────────
 
@@ -623,11 +782,15 @@ contract CygnusAltair is ICygnusAltair {
         address borrowable,
         uint256 amountMax,
         address borrower,
-        uint256 deadline
+        uint256 deadline,
+        bytes calldata permitData
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
         // Ensure that the amount to repay is never more than currently owed.
         // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
+
+        // Check permit - transfer USD from sender to borrowable
+        _checkPermit(usd, amount, deadline, permitData);
 
         // Transfer USD from msg sender to borrow contract
         usd.safeTransferFrom(msg.sender, borrowable, amount);
@@ -716,10 +879,14 @@ contract CygnusAltair is ICygnusAltair {
         uint256 amountMax,
         address borrower,
         address recipient,
-        uint256 deadline
+        uint256 deadline,
+        bytes calldata permitData
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
         // Amount to repay
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
+
+        // Check permit
+        _checkPermit(usd, amount, deadline, permitData);
 
         // Transfer USD
         usd.safeTransferFrom(msg.sender, borrowable, amount);
@@ -807,7 +974,6 @@ contract CygnusAltair is ICygnusAltair {
         address collateral,
         uint256 amountMax,
         address borrower,
-        address recipient,
         uint256 deadline,
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
@@ -819,21 +985,19 @@ contract CygnusAltair is ICygnusAltair {
         address lpTokenPair = ICygnusCollateral(collateral).underlying();
 
         // Encode data to bytes
-        bytes memory cygnusShuttle = abi.encode(
-            AltairLiquidateCalldata({
-                lpTokenPair: lpTokenPair,
-                collateral: collateral,
-                borrowable: borrowable,
-                borrower: borrower,
-                recipient: recipient,
-                repayAmount: amount,
-                dexAggregator: dexAggregator,
-                swapdata: swapdata
-            })
+        bytes memory liquidateData = _createFlashLiquidateData(
+            lpTokenPair,
+            collateral,
+            borrowable,
+            borrower,
+            amount,
+            dexAggregator,
+            swapdata
         );
 
         // Liquidate
-        ICygnusBorrow(borrowable).liquidate(borrower, collateral, amount, cygnusShuttle);
+        // The liquidated CYGLP is transfered to the collateral to then call `flashRedeem` and receive LP
+        ICygnusBorrow(borrowable).liquidate(borrower, collateral, amount, liquidateData);
     }
 
     //  LEVERAGE ─────────────────────────────────────
@@ -856,7 +1020,7 @@ contract CygnusAltair is ICygnusAltair {
         _checkPermit(borrowable, usdAmount, deadline, permitData);
 
         // Encode data to bytes
-        bytes memory borrowData = _createLeverageShuttle(lpTokenPair, collateral, borrowable, lpAmountMin, dexAggregator, swapdata);
+        bytes memory borrowData = _createLeverageData(lpTokenPair, collateral, borrowable, lpAmountMin, dexAggregator, swapdata);
 
         // Call borrow with encoded data
         liquidity = ICygnusBorrow(borrowable).borrow(msg.sender, address(this), usdAmount, borrowData);
@@ -881,14 +1045,11 @@ contract CygnusAltair is ICygnusAltair {
         // Permit if any
         _checkPermit(collateral, cygLPAmount, deadline, permitData);
 
-        // Current CygLP exchange rate
-        uint256 exchangeRate = ICygnusCollateral(collateral).exchangeRate();
-
         // Get redeem amount
-        uint256 redeemAmount = cygLPAmount.mulWad(exchangeRate);
+        uint256 redeemAmount = cygLPAmount.mulWad(ICygnusCollateral(collateral).exchangeRate());
 
         // Encode data to bytes
-        bytes memory redeemData = _createDeleverageShuttle(
+        bytes memory redeemData = _createDeleverageData(
             lpTokenPair,
             collateral,
             borrowable,
@@ -906,6 +1067,7 @@ contract CygnusAltair is ICygnusAltair {
 
     /**
      *  @notice Initializes the mapping of borrowable/collateral/lp token => extension
+     *  @inheritdoc ICygnusAltair
      *  @custom:security only-admin
      */
     function setAltairExtension(uint256 shuttleId, address extension) external override {

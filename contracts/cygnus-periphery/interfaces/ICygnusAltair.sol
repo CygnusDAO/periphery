@@ -22,6 +22,7 @@ pragma solidity >=0.8.17;
 import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
 import {IWrappedNative} from "./IWrappedNative.sol";
+import {ICygnusBorrow} from "./core/ICygnusBorrow.sol";
 
 // Permit2
 import {IAllowanceTransfer} from "./core/IAllowanceTransfer.sol";
@@ -71,6 +72,13 @@ interface ICygnusAltair {
     error CygnusAltair__0xProjectTransactionFailed();
 
     /**
+     *  @dev Reverts when the OpenOcean transaction fails
+     *
+     *  @custom:error OpenOceanTransactionFailed
+     */
+    error CygnusAltair__OpenOceanTransactionFailed();
+
+    /**
      *  @dev Reverts if an extension has not been set for the borrowable or collateral
      *
      *  @custom:error AltairXDoesNotExist
@@ -99,7 +107,8 @@ interface ICygnusAltair {
         PARASWAP,
         ONE_INCH_LEGACY,
         ONE_INCH_V2,
-        OxPROJECT
+        OxPROJECT,
+        OPEN_OCEAN
     }
 
     /**
@@ -187,11 +196,20 @@ interface ICygnusAltair {
      */
     function OxPROJECT_EXCHANGE_PROXY() external pure returns (address);
 
+    /**
+     *  @return OPEN_OCEAN_EXCHANGE_PROXY The address of OpenOcean's exchange router
+     */
+    function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
 
     /**
      *  @return name The human readable name this router is for
      */
     function name() external view returns (string memory);
+
+    /**
+     *  @return version The version of the router
+     */
+    function version() external view returns (string memory);
 
     /**
      *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
@@ -229,7 +247,8 @@ interface ICygnusAltair {
      */
     function getAssetsForShares(
         address underlying,
-        uint256 shares
+        uint256 shares,
+        uint256 slippage
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
 
     /**
@@ -241,6 +260,67 @@ interface ICygnusAltair {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @notice Gets the account's total position value in USD (LP Tokens owned multiplied by LP price). It uses the oracle to get the
+     *          price of the LP Token and uses the current exchange rate.
+     *  @param borrowable The address of the borrowable contract
+     *  @param borrower The address of the borrower
+     *  @return cygLPBalance The user's balance of collateral (CygLP)
+     *  @return principal The original loaned USDC amount (without interest)
+     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
+     *  @return price The current liquidity token price
+     *  @return rate The current exchange rate between CygLP and LP Token
+     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
+     *  @return positionLp The borrower`s position in LP Tokens
+     *  @return health The user's current loan health (once it reaches 100% the user becomes liquidatable)
+     */
+    function latestBorrowerPosition(
+        ICygnusBorrow borrowable,
+        address borrower
+    )
+        external
+        returns (
+            uint256 cygLPBalance,
+            uint256 principal,
+            uint256 borrowBalance,
+            uint256 price,
+            uint256 rate,
+            uint256 positionUsd,
+            uint256 positionLp,
+            uint256 health,
+            uint256 liquidity,
+            uint256 shortfall
+        );
+
+    /**
+     *  @notice Get the lender`s full position
+     *  @param borrowable The address of the borrowable contract
+     *  @param lender The address of the lender
+     *  @return cygUsdBalance The `lender's` balance of CygUSD
+     *  @return rate The currente exchange rate
+     *  @return positionInUsd The lender's position in USD
+     */
+    function latestLenderPosition(
+        ICygnusBorrow borrowable,
+        address lender
+    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionInUsd);
+
+    /**
+     *  @notice Get the whole lending pool info with latest interest rate accruals
+     *  @param borrowable The address of the borrowable contract
+     *  @return supplyApr The latest annualized return for lenders
+     *  @return borrowApr The latest interest rate for borrowers
+     *  @return util The latest utilization rate
+     *  @return totalBorrows The latest total borrows
+     *  @return totalBalance The latest available cash
+     *  @return exchangeRate The latest exchange rate between USD and CygUSD
+     */
+    function latestShuttleInfo(
+        ICygnusBorrow borrowable
+    )
+        external
+        returns (uint256 supplyApr, uint256 borrowApr, uint256 util, uint256 totalBorrows, uint256 totalBalance, uint256 exchangeRate);
 
     /**
      *  @notice Main function used in Cygnus to liquidate borrows
@@ -255,7 +335,8 @@ interface ICygnusAltair {
         uint256 amountMax,
         address borrower,
         address recipient,
-        uint256 deadline
+        uint256 deadline,
+        bytes calldata permitData
     ) external returns (uint256 amount, uint256 seizeTokens);
 
     /**
@@ -319,7 +400,13 @@ interface ICygnusAltair {
      *  @param borrower Thea ddress of the borrower
      *  @param deadline The time by which the transaction must be included to effect the change
      */
-    function repay(address borrowable, uint256 amountMax, address borrower, uint256 deadline) external returns (uint256 amount);
+    function repay(
+        address borrowable,
+        uint256 amountMax,
+        address borrower,
+        uint256 deadline,
+        bytes calldata permitData
+    ) external returns (uint256 amount);
 
     /**
      *  @notice Main function used in Cygnus to repay borrow using Permit2 Signature Transfer
@@ -362,7 +449,6 @@ interface ICygnusAltair {
      *  @param borrowable The address of the CygnusBorrow contract
      *  @param amountMax The maximum amount to liquidate
      *  @param borrower The address of the borrower
-     *  @param recipient The address of the recipient
      *  @param deadline The time by which the transaction must be included to effect the change
      *  @param dexAggregator The dex used to sell the collateral (0 for Paraswap, 1 for 1inch)
      *  @param swapdata Calldata to swap
@@ -372,7 +458,6 @@ interface ICygnusAltair {
         address collateral,
         uint256 amountMax,
         address borrower,
-        address recipient,
         uint256 deadline,
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
