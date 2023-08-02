@@ -178,13 +178,13 @@ function _swapTokens0xProject(bytes memory swapdata, address srcToken, uint256 s
  *  @return amountOut The amount received of destination token
  */
 function _swapTokensOpenOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
-    // Approve 0x Exchange Proxy Router in `srcToken` if necessary
+    // Approve OpenOcean Exchange Router in `srcToken` if necessary
     _approveToken(srcToken, OPEN_OCEAN_EXCHANGE_PROXY, srcAmount);
 
-    // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+    // Call OpenOcean's exchange router
     (bool success, bytes memory resultData) = OPEN_OCEAN_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
 
-    /// @custom:error 0xProjectTransactionFailed
+    /// @custom:error OpenOceanTransactionFailed
     if (!success) revert CygnusAltair__OpenOceanTransactionFailed();
 
     // Return amount received
