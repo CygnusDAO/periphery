@@ -7,10 +7,11 @@
 | Integrated with Paraswap's router                              | (15/06/2023) |
 | Integrated with 0xProject's Swap API                           | (30/06/2023) |
 | Added Fallback function for each extension                     | (06/07/2023) |
+| Integrated with OpenOcean's Aggregator API                     | (02/08/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
-This router is integrated with <a href="https://1inch.io">1inch</a>, <a href="https://www.paraswap.io/">Paraswap</a> and <a href="https://www.0x.org">0xProject</a> using their latest routers and it works mostly
+This router is integrated with <a href="https://1inch.io">1inch</a>, <a href="https://www.paraswap.io/">Paraswap</a>, <a href="https://www.0x.org">0xProject</a> and <a href="https://www.openocean.finance">OpenOcean</a> using their latest routers and it works mostly
 on-chain. The queries are estimated before the first call off-chain, following the same logic for each swap as this
 contract. Each proceeding call builds on top of the previous one.
 
@@ -162,6 +163,38 @@ function swapTokens0xProjectPrivate(bytes memory swapdata, address srcToken, uin
     }
 }
 ```
+
+<hr />
+
+**OpenOcean Integration**
+
+<img src="https://miro.medium.com/v2/resize:fit:720/format:webp/1*9AAAVGH0WlpFltFTdnanFQ.jpeg" alt="OpenOcean">
+
+```solidity
+/**
+ *  @notice Creates the swap with OpenOcean's Aggregator API
+ *  @param swapdata The data from OpenOcean`s swap quote query
+ *  @param srcAmount The balanceOf this contract`s srcToken
+ *  @return amountOut The amount received of destination token
+ */
+function _swapTokensOpeanOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
+    // Approve 0x Exchange Proxy Router in `srcToken` if necessary
+    _approveToken(srcToken, OPEN_OCEAN_EXCHANGE_PROXY, srcAmount);
+
+    // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+    (bool success, bytes memory resultData) = OPEN_OCEAN_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
+
+    /// @custom:error 0xProjectTransactionFailed
+    if (!success) revert CygnusAltair__OpenOceanTransactionFailed();
+
+    // Return amount received
+    assembly {
+        amountOut := mload(add(resultData, 32))
+    }
+}
+```
+
+<hr />
 
 <hr />
 
