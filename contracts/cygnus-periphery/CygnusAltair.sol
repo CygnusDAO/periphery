@@ -511,7 +511,7 @@ contract CygnusAltair is ICygnusAltair {
      *  @param srcAmount The balanceOf this contract`s srcToken
      *  @return amountOut The amount received of destination token
      */
-    function _swapTokensOpeanOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
+    function _swapTokensOpenOcean(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) { 
         // Approve 0x Exchange Proxy Router in `srcToken` if necessary
         _approveToken(srcToken, OPEN_OCEAN_EXCHANGE_PROXY, srcAmount);
 
@@ -563,7 +563,7 @@ contract CygnusAltair is ICygnusAltair {
         }
         // Case 4: OPEN_OCEAN - Swap with OpenOcean
         else if (dexAggregator == DexAggregator.OPEN_OCEAN) {
-            amountOut = _swapTokensOpeanOcean(swapdata, srcToken, srcAmount);
+            amountOut = _swapTokensOpenOcean(swapdata, srcToken, srcAmount);
         }
     }
 
