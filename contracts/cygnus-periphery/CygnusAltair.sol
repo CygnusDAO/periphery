@@ -405,7 +405,7 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
-     *  @notice Safe internal function to repay borrowed amount
+     *  @notice Safe internal function to repay the max borrowed amount (in case borrower passed higher amount)
      *  @param borrowable The address of the Cygnus borrow arm where the borrowed amount was taken from
      *  @param amountMax The max amount that can be repaid
      *  @param borrower The address of the account that is repaying the borrowed amount
