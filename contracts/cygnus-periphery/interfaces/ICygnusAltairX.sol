@@ -74,6 +74,13 @@ interface ICygnusAltairX {
     error CygnusAltair__0xProjectTransactionFailed();
 
     /**
+     *  @dev Reverts when the Open Ocean swap transaction fails
+     *
+     *  @custom:error OpenOceanTransactionFailed
+     */
+    error CygnusAltair__OpenOceanTransactionFailed();
+
+    /**
      *  @dev Reverts when USD amount received is less than minimum asked while liquidating
      *
      *  @custom:error InsufficientLiquidateUsd
@@ -93,6 +100,13 @@ interface ICygnusAltairX {
      *  @custom:error InsufficientLPTokenAmount
      */
     error CygnusAltair__InsufficientLPTokenAmount();
+
+    /**
+     *  @dev Reverts if the call is not a delegate call
+     *
+     *  @custom:error OnlyDelegateCall
+     */
+    error CygnusAltair__OnlyDelegateCall();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
@@ -124,6 +138,11 @@ interface ICygnusAltairX {
     function OxPROJECT_EXCHANGE_PROXY() external pure returns (address);
 
     /**
+     *  @return OPEN_OCEAN_EXCHANGE_PROXY The address of OpenOcean's exchange router
+     */
+    function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
+
+    /**
      *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
      */
     function hangar18() external view returns (IHangar18);
@@ -142,13 +161,15 @@ interface ICygnusAltairX {
      *  @dev Returns the assets and amounts received by redeeming a given amount of underlying liquidity tokens.
      *  @param underlying The address of the underlying liquidity token (e.g., LP token or Balancer BPT).
      *  @param shares The amount of underlying liquidity tokens to redeem.
+     *  @param difference Substract a difference from the estimated amount received to make sure router always has enough
+     *                    from the actual amount received.
      *  @return tokens An array of addresses representing the received tokens.
      *  @return amounts An array of corresponding amounts received by redeeming the liquidity tokens.
      */
     function getAssetsForShares(
         address underlying,
         uint256 shares,
-        uint256 slippage
+        uint256 difference
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 

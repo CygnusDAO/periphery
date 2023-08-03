@@ -23,6 +23,7 @@ import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
 import {IWrappedNative} from "./IWrappedNative.sol";
 import {ICygnusBorrow} from "./core/ICygnusBorrow.sol";
+import {ICygnusNebulaRegistry} from "./core/ICygnusNebulaRegistry.sol";
 
 // Permit2
 import {IAllowanceTransfer} from "./core/IAllowanceTransfer.sol";
@@ -32,6 +33,83 @@ import {ISignatureTransfer} from "./core/ISignatureTransfer.sol";
  *  @notice Interface to interact with Cygnus' router contract
  */
 interface ICygnusAltair {
+    /**
+     *  @notice Enum for choosing dex aggregators to perform leverage, deleverage and flash liquidations
+     *  @custom:member PARASWAP Uses Paraswap
+     *  @custom:member ONE_INCH Uses 1inch with the legacy `swap` mmethod
+     *  @custom:member ONE_INCH Uses 1inch with optimized routers
+     *  @custom:member OxPROJECT Uses 0xProjects swap API
+     *  @custom:member OPEN_OCEAN_V1 Uses OpenOcean  with the legacy `swap` method
+     *  @custom:member OPEN_OCEAN_V2 Uses OpenOcean with `uniswapV3SwapTo` method
+     */
+    enum DexAggregator {
+        PARASWAP,
+        ONE_INCH_LEGACY,
+        ONE_INCH_V2,
+        OxPROJECT,
+        OPEN_OCEAN_V1,
+        OPEN_OCEAN_V2
+    }
+
+    /**
+     *  @custom:struct AltairLeverageCalldata Encoded bytes passed to Cygnus Borrow contract for leverage
+     *  @custom:member lpTokenPair The address of the LP Token
+     *  @custom:member collateral The address of the Cygnus collateral contract
+     *  @custom:member borrowable The address of the Cygnus borrow contract
+     *  @custom:member recipient The address of the user receiving the leveraged LP Tokens
+     *  @custom:member lpAmountMin The minimum amount of LP Tokens to receive
+     */
+    struct AltairLeverageCalldata {
+        address lpTokenPair;
+        address collateral;
+        address borrowable;
+        address recipient;
+        uint256 lpAmountMin;
+        DexAggregator dexAggregator;
+        bytes[] swapdata;
+    }
+
+    /**
+     *  @custom:struct AltairDeleverageCalldata Encoded bytes passed to Cygnus Collateral contract for de-leverage
+     *  @custom:member lpTokenPair The address of the LP Token
+     *  @custom:member collateral The address of the collateral contract
+     *  @custom:member borrowable The address of the borrow contract
+     *  @custom:member recipient The address of the user receiving the de-leveraged assets
+     *  @custom:member redeemTokens The amount of CygLP to redeem
+     *  @custom:member usdAmountMin The minimum amount of USD to receive by redeeming `redeemTokens`
+     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD
+     */
+    struct AltairDeleverageCalldata {
+        address lpTokenPair;
+        address collateral;
+        address borrowable;
+        address recipient;
+        uint256 redeemTokens;
+        uint256 usdAmountMin;
+        DexAggregator dexAggregator;
+        bytes[] swapdata;
+    }
+
+    /**
+     *  @custom:struct AltairLiquidateCalldata Encoded bytes passed to Cygnus Borrow contract for liquidating borrows
+     *  @custom:member lpTokenPair The address of the LP Token
+     *  @custom:member collateral The address of the collateral contract
+     *  @custom:member borrowable The address of the borrow contract
+     *  @custom:member recipient The address of the liquidator (or this contract if protocol liquidation)
+     *  @custom:member borrower The address of the borrower being liquidated
+     *  @custom:member repayAmount The USD amount being repaid by the liquidator
+     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD after burning
+     */
+    struct AltairLiquidateCalldata {
+        address lpTokenPair;
+        address collateral;
+        address borrowable;
+        address recipient;
+        address borrower;
+        uint256 repayAmount;
+        DexAggregator dexAggregator;
+        bytes[] swapdata;
+    }
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -97,81 +175,6 @@ interface ICygnusAltair {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Enum for choosing dex aggregators to perform leverage, deleverage and liquidations
-     *  @custom:member PARASWAP Pass 0 to use Paraswap (most gas efficient)
-     *  @custom:member ONE_INCH Pass 1 to use 1Inch legacy (using the `swap` function)
-     *  @custom:member ONE_INCH Pass 2 to use 1Inch optimized routers (unoswap, uniswapv3, etc. - This can be the most gas consuming)
-     *  @custom:member OxProject Pass 3 to use 0xProject/Matcha API
-     */
-    enum DexAggregator {
-        PARASWAP,
-        ONE_INCH_LEGACY,
-        ONE_INCH_V2,
-        OxPROJECT,
-        OPEN_OCEAN
-    }
-
-    /**
-     *  @custom:struct AltairLeverageCalldata Encoded bytes passed to Cygnus Borrow contract for leverage
-     *  @custom:member lpTokenPair The address of the LP Token
-     *  @custom:member collateral The address of the Cygnus collateral contract
-     *  @custom:member borrowable The address of the Cygnus borrow contract
-     *  @custom:member recipient The address of the user receiving the leveraged LP Tokens
-     *  @custom:member lpAmountMin The minimum amount of LP Tokens to receive
-     */
-    struct AltairLeverageCalldata {
-        address lpTokenPair;
-        address collateral;
-        address borrowable;
-        address recipient;
-        uint256 lpAmountMin;
-        DexAggregator dexAggregator;
-        bytes[] swapdata;
-    }
-
-    /**
-     *  @custom:struct AltairDeleverageCalldata Encoded bytes passed to Cygnus Collateral contract for de-leverage
-     *  @custom:member lpTokenPair The address of the LP Token
-     *  @custom:member collateral The address of the collateral contract
-     *  @custom:member borrowable The address of the borrow contract
-     *  @custom:member recipient The address of the user receiving the de-leveraged assets
-     *  @custom:member redeemTokens The amount of CygLP to redeem
-     *  @custom:member usdAmountMin The minimum amount of USD to receive by redeeming `redeemTokens`
-     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD
-     */
-    struct AltairDeleverageCalldata {
-        address lpTokenPair;
-        address collateral;
-        address borrowable;
-        address recipient;
-        uint256 redeemTokens;
-        uint256 usdAmountMin;
-        DexAggregator dexAggregator;
-        bytes[] swapdata;
-    }
-
-    /**
-     *  @custom:struct AltairLiquidateCalldata Encoded bytes passed to Cygnus Borrow contract for liquidating borrows
-     *  @custom:member lpTokenPair The address of the LP Token
-     *  @custom:member collateral The address of the collateral contract
-     *  @custom:member borrowable The address of the borrow contract
-     *  @custom:member recipient The address of the liquidator (or this contract if protocol liquidation)
-     *  @custom:member borrower The address of the borrower being liquidated
-     *  @custom:member repayAmount The USD amount being repaid by the liquidator
-     *  @custom:member swapdata The 1inch swap data byte array to convert Liquidity Tokens to USD after burning
-     */
-    struct AltairLiquidateCalldata {
-        address lpTokenPair;
-        address collateral;
-        address borrowable;
-        address recipient;
-        address borrower;
-        uint256 repayAmount;
-        DexAggregator dexAggregator;
-        bytes[] swapdata;
-    }
-
-    /**
      *  @notice Array of all initialized extensions
      */
     function allExtensions(uint256 index) external view returns (address);
@@ -217,6 +220,11 @@ interface ICygnusAltair {
     function hangar18() external view returns (IHangar18);
 
     /**
+     *  @return nebulaRegistry The address of the nebula registry on this chain
+     */
+    function nebulaRegistry() external view returns (ICygnusNebulaRegistry);
+
+    /**
      *  @return usd The address of USD on this chain, used for the leverage/deleverage swaps
      */
     function usd() external view returns (address);
@@ -250,6 +258,28 @@ interface ICygnusAltair {
         uint256 shares,
         uint256 slippage
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
+
+    /**
+     *  @notice Gets the latest info for an initialized LP Token
+     *  @param underlying The address of the LP Token
+     *  @return tokens Array of addresses of all the LP's assets
+     *  @return prices Array of prices of each asset (in denom token)
+     *  @return reserves Array of reserves of each asset in the LP
+     *  @return tokenDecimals Array of decimals of each token
+     *  @return reservesUsd Array of reserves of each asset in USD
+     */
+    function getLPTokenInfo(
+        address underlying
+    )
+        external
+        view
+        returns (
+            IERC20[] memory tokens,
+            uint256[] memory prices,
+            uint256[] memory reserves,
+            uint256[] memory tokenDecimals,
+            uint256[] memory reservesUsd
+        );
 
     /**
      *  @dev Returns whether an extension is set or not

@@ -49,6 +49,8 @@ interface IHypervisor {
     function token0() external view returns (address);
 
     function token1() external view returns (address);
+
+    function whitelistedAddress() external view returns (address);
 }
 
 interface IGammaProxy {

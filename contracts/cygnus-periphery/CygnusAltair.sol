@@ -55,6 +55,7 @@ import {ICygnusTerminal} from "./interfaces/core/ICygnusTerminal.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol"; // Permit2
 import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol"; // Permit2
+import {ICygnusNebulaRegistry} from "./interfaces/core/ICygnusNebulaRegistry.sol"; // Oracle
 
 // Aggregators
 import {IAugustusSwapper} from "./interfaces/aggregators/IAugustusSwapper.sol";
@@ -152,12 +153,14 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public constant override version = "1.0.2";
+    string public constant override version = "1.0.0";
 
     /**
      *  @inheritdoc ICygnusAltair
      */
     address public constant override PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
+    // Aggregator addresses are not used in this contract, kept here for consistency with extensions
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -194,6 +197,11 @@ contract CygnusAltair is ICygnusAltair {
      */
     IWrappedNative public immutable override nativeToken;
 
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    ICygnusNebulaRegistry public immutable override nebulaRegistry;
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           3. CONSTRUCTOR
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -212,6 +220,9 @@ contract CygnusAltair is ICygnusAltair {
 
         // Assign the USD address set at the factoryn
         usd = _hangar18.usd();
+
+        // Assign registry
+        nebulaRegistry = _hangar18.nebulaRegistry();
     }
 
     /**
@@ -330,6 +341,26 @@ contract CygnusAltair is ICygnusAltair {
         // The extension should implement the assets for shares function - ie. Which assets and how much we receive
         // by redeeming `shares` amount of a liquidity token
         return ICygnusAltairX(altairX).getAssetsForShares(lpTokenPair, shares, slippage);
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    function getLPTokenInfo(
+        address lpTokenPair
+    )
+        external
+        view
+        override
+        returns (
+            IERC20[] memory tokens,
+            uint256[] memory prices,
+            uint256[] memory reserves,
+            uint256[] memory tokenDecimals,
+            uint256[] memory reservesUsd
+        )
+    {
+        return nebulaRegistry.getLPTokenInfo(lpTokenPair);
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -497,7 +528,6 @@ contract CygnusAltair is ICygnusAltair {
     //  POSITIONS ────────────────────────────────────
 
     /**
-     *  @notice Easier data for frontend and for build tx data
      *  @inheritdoc ICygnusAltair
      */
     function latestLenderPosition(
@@ -512,7 +542,6 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
-     *  @notice Easier data for frontend and for build tx data
      *  @inheritdoc ICygnusAltair
      */
     function latestBorrowerPosition(
@@ -577,7 +606,15 @@ contract CygnusAltair is ICygnusAltair {
         exchangeRate = borrowable.exchangeRate();
     }
 
-    //  BORROW ───────────────────────────────────────
+    // Start periphery functions:
+    //   1. Borrow
+    //   2. Repay (+ permit2)
+    //   3. Liquidate (+ permit2)
+    //   4. Flash Liquidate
+    //   5. Leverage
+    //   6. Deleverage
+
+    //  1. BORROW ────────────────────────────────────
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -596,7 +633,7 @@ contract CygnusAltair is ICygnusAltair {
         ICygnusBorrow(borrowable).borrow(msg.sender, recipient, amount, LOCAL_BYTES);
     }
 
-    //  REPAY ────────────────────────────────────────
+    //  2. REPAY ─────────────────────────────────────
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -692,7 +729,7 @@ contract CygnusAltair is ICygnusAltair {
         ICygnusBorrow(borrowable).borrow(borrower, address(0), 0, LOCAL_BYTES);
     }
 
-    //  LIQUIDATE BORROW ─────────────────────────────
+    //  3. LIQUIDATE ─────────────────────────────────
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -789,6 +826,8 @@ contract CygnusAltair is ICygnusAltair {
         seizeTokens = ICygnusBorrow(borrowable).liquidate(borrower, recipient, amount, LOCAL_BYTES);
     }
 
+    //  4. FLASH LIQUIDATE ───────────────────────────
+
     /**
      *  @inheritdoc ICygnusAltair
      */
@@ -823,7 +862,7 @@ contract CygnusAltair is ICygnusAltair {
         ICygnusBorrow(borrowable).liquidate(borrower, collateral, amount, liquidateData);
     }
 
-    //  LEVERAGE ─────────────────────────────────────
+    //  5. LEVERAGE ──────────────────────────────────
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -849,7 +888,7 @@ contract CygnusAltair is ICygnusAltair {
         liquidity = ICygnusBorrow(borrowable).borrow(msg.sender, address(this), usdAmount, borrowData);
     }
 
-    //  DELEVERAGE ───────────────────────────────────
+    //  6. DELEVERAGE ────────────────────────────────
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -906,7 +945,7 @@ contract CygnusAltair is ICygnusAltair {
         /// @custom:error ShuttleDoesNotExist
         if (!launched) revert CygnusAltair__ShuttleDoesNotExist();
 
-        // Add to array
+        // Add to array - Allow admin to update extension for the lending pool
         if (!isExtension[extension]) {
             // Add to array
             allExtensions.push(extension);

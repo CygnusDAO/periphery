@@ -18,6 +18,8 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
+import {ICygnusNebulaRegistry} from "./ICygnusNebulaRegistry.sol";
+
 /**
  *  @title The interface for the Cygnus Factory
  *  @notice The Cygnus factory facilitates creation of collateral and borrow pools
@@ -50,4 +52,6 @@ interface IHangar18 {
     function allShuttles(
         uint256 _shuttleId
     ) external view returns (bool launched, uint88 shuttleId, address borrowable, address collateral, uint96 orbiterId);
+
+    function nebulaRegistry() external view returns (ICygnusNebulaRegistry);
 }
