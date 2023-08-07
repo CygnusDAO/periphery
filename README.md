@@ -148,10 +148,10 @@ function _swapTokensParaswap(
  *  @return amountOut The amount received of destination token
  */
 function _swapTokens0xProject(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
-    // Approve 1Inch Router in `srcToken` if necessary
+    // Approve `srcToken` in 0xExchange proxy if necessary
     _approveToken(srcToken, address(OxPROJECT_EXCHANGE_PROXY), srcAmount);
 
-    // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+    // Call the 0xExchange proxy with the data passed
     (bool success, bytes memory resultData) = OxPROJECT_EXCHANGE_PROXY.call{value: msg.value}(swapdata);
 
     /// @custom:error 0xProjectTransactionFailed
