@@ -47,8 +47,8 @@ import {FixedPointMathLib} from "./libraries/FixedPointMathLib.sol";
 import {IERC20} from "./interfaces/core/IERC20.sol";
 import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
-import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
+import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol";
 
@@ -61,7 +61,7 @@ import {IOpenOceanExchange, IOpenOceanCaller} from "./interfaces/aggregators/IOp
  *  @title  CygnusAltairX Extension for the main periphery contract `CygnusAltair`
  *  @author CygnusDAO
  *  @notice Since the core contracts may be integrated with many different dexes, we have to rely on separate
- *          logic for each at the time of leveraging, deleveraging and flash liquidating. 
+ *          logic for each at the time of leveraging, deleveraging and flash liquidating.
  *            - Leveraging: Converts USDC to Liquidity Tokens. (ie converts USDC to ETH/Matic LP)
  *            - Deleveraging/Flash Liquidating: Converts Liquidity Tokens to USDC. (ie. converts ETH/Matic LP to USDC)
  *
@@ -103,7 +103,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     /**
      *  @notice Stored contract address to check for delegate call only
      */
-    address internal immutable _contractAddress;
+    address internal immutable extensionAddress;
 
     /**
      *  @notice Empty allowance permit
@@ -168,7 +168,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      */
     constructor(IHangar18 _hangar18, string memory _name) {
         // Name
-        name = string(abi.encodePacked("Cygnus: Altair Extension - ", _name));
+        name = string.concat("Cygnus: Altair Extension - ", _name);
 
         // Factory
         hangar18 = _hangar18;
@@ -180,8 +180,13 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         usd = _hangar18.usd();
 
         // Store the contract address to restrict certain functions to delegate only
-        _contractAddress = address(this);
+        extensionAddress = address(this);
     }
+
+    /**
+     *  @dev This function is called for plain Ether transfers, i.e. for every call with empty calldata.
+     */
+    receive() external payable {}
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           4. MODIFIERS
@@ -205,7 +210,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      */
     function _checkAddress() internal view {
         /// @custom:error OnlyDelegateCall Avoid if the call is not a delegate call
-        if (address(this) == _contractAddress) revert CygnusAltair__OnlyDelegateCall();
+        if (address(this) == extensionAddress) revert CygnusAltair__OnlyDelegateCall();
     }
 
     /**
@@ -216,6 +221,22 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     function _checkBalance(address token) internal view returns (uint256) {
         // Our balance of `token` (uses solady lib)
         return token.balanceOf(address(this));
+    }
+
+    /**
+     *  @notice Convert shares to assets
+     *  @param collateral Address of the CygLP
+     *  @param shares Amount of CygLP redeemed
+     */
+    function _convertToAssets(address collateral, uint256 shares) internal view returns (uint256) {
+        // CygLP Supply
+        uint256 _totalSupply = ICygnusCollateral(collateral).totalSupply();
+
+        // LP assets in collateral
+        uint256 _totalAssets = ICygnusCollateral(collateral).totalAssets();
+
+        // Return the amount of LPs we get by redeeming shares
+        return shares.fullMulDiv(_totalAssets, _totalSupply);
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -327,6 +348,8 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
     }
 
+    // Swap tokens via Paraswap
+
     /**
      *  @notice Creates the swap with Paraswap's Augustus Swapper. We don't update the amount, instead we clean dust at the end.
      *          This is because the data is of complex type (Path[] path). We pass the token being swapped and the amount being
@@ -351,6 +374,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
 
         // Return amount received - This is off by some very small amount from the actual contract balance.
         // We shouldn't use it directly. Instead, query contract balance of token received
+        /// @solidity memory-safe-assembly
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -404,6 +428,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         if (!success) _extensionRevert(resultData);
 
         // Return amount received
+        /// @solidity memory-safe-assembly
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -428,6 +453,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         if (!success) _extensionRevert(resultData);
 
         // Return amount received
+        /// @solidity memory-safe-assembly
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -475,6 +501,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         if (!success) _extensionRevert(resultData);
 
         // Return amount received
+        /// @solidity memory-safe-assembly
         assembly {
             amountOut := mload(add(resultData, 32))
         }
@@ -512,12 +539,65 @@ abstract contract CygnusAltairX is ICygnusAltairX {
             amountOut = _swapTokens0xProject(swapdata, srcToken, srcAmount);
         }
         // Case 4: OPEN OCEAN SWAP
-        else if (dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_V1) {
+        else if (dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY) {
             amountOut = _swapTokensOpenOceanV1(swapdata, srcToken, srcAmount);
         }
         // Case 5: OPEN OCEAN V2
         else if (dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_V2) {
             amountOut = _swapTokensOpenOceanV2(swapdata, srcToken, srcAmount);
         }
+    }
+
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
+    /**
+     *  @inheritdoc ICygnusAltairX
+     *  @custom:security only-admin
+     */
+    function setName(string memory _name) external {
+        // Get latest admin
+        address admin = hangar18.admin();
+
+        /// @custom:error MsgSenderNotAdmin
+        if (msg.sender != admin) revert("Only admin");
+
+        // Update name
+        name = string.concat("Cygnus: Altair Extension - ", _name);
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltairX
+     *  @custom:security only-admin
+     */
+    function sweepToken(address token) external override {
+        // Get latest admin
+        address admin = hangar18.admin();
+
+        /// @custom:error MsgSenderNotAdmin
+        if (msg.sender != admin) revert("Only admin");
+
+        // Token balance
+        uint256 balance = _checkBalance(token);
+
+        // Transfer token to admin
+        if (balance > 0) token.safeTransfer(admin, balance);
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltairX
+     *  @custom:security only-admin
+     */
+    function sweepNative() external override {
+        // Get latest admin
+        address admin = hangar18.admin();
+
+        /// @custom:error MsgSenderNotAdmin
+        if (msg.sender != admin) revert("Only admin");
+
+        // ETH balance
+        uint256 balance = address(this).balance;
+
+        // Transfer ETH to admin
+        if (balance > 0) admin.safeTransferETH(balance);
     }
 }

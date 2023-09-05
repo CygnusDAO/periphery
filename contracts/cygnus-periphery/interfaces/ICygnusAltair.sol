@@ -23,7 +23,6 @@ import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
 import {IWrappedNative} from "./IWrappedNative.sol";
 import {ICygnusBorrow} from "./core/ICygnusBorrow.sol";
-import {ICygnusNebulaRegistry} from "./core/ICygnusNebulaRegistry.sol";
 
 // Permit2
 import {IAllowanceTransfer} from "./core/IAllowanceTransfer.sol";
@@ -47,7 +46,7 @@ interface ICygnusAltair {
         ONE_INCH_LEGACY,
         ONE_INCH_V2,
         OxPROJECT,
-        OPEN_OCEAN_V1,
+        OPEN_OCEAN_LEGACY,
         OPEN_OCEAN_V2
     }
 
@@ -110,6 +109,7 @@ interface ICygnusAltair {
         DexAggregator dexAggregator;
         bytes[] swapdata;
     }
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             1. CUSTOM ERRORS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -220,11 +220,6 @@ interface ICygnusAltair {
     function hangar18() external view returns (IHangar18);
 
     /**
-     *  @return nebulaRegistry The address of the nebula registry on this chain
-     */
-    function nebulaRegistry() external view returns (ICygnusNebulaRegistry);
-
-    /**
      *  @return usd The address of USD on this chain, used for the leverage/deleverage swaps
      */
     function usd() external view returns (address);
@@ -240,6 +235,13 @@ interface ICygnusAltair {
      *  @return The address of the extension
      */
     function getAltairExtension(address poolToken) external view returns (address);
+
+    /**
+     *  @notice Returns the altair extension for a shuttle id
+     *  @param shuttleId The ID of the lending pool
+     *  @return The address of the extension
+     */
+    function getShuttleExtension(uint256 shuttleId) external view returns (address);
 
     /**
      *  @return altairExtensionsLength How many extensions we have added to the router so far
@@ -258,28 +260,6 @@ interface ICygnusAltair {
         uint256 shares,
         uint256 slippage
     ) external view returns (address[] memory tokens, uint256[] memory amounts);
-
-    /**
-     *  @notice Gets the latest info for an initialized LP Token
-     *  @param underlying The address of the LP Token
-     *  @return tokens Array of addresses of all the LP's assets
-     *  @return prices Array of prices of each asset (in denom token)
-     *  @return reserves Array of reserves of each asset in the LP
-     *  @return tokenDecimals Array of decimals of each token
-     *  @return reservesUsd Array of reserves of each asset in USD
-     */
-    function getLPTokenInfo(
-        address underlying
-    )
-        external
-        view
-        returns (
-            IERC20[] memory tokens,
-            uint256[] memory prices,
-            uint256[] memory reserves,
-            uint256[] memory tokenDecimals,
-            uint256[] memory reservesUsd
-        );
 
     /**
      *  @dev Returns whether an extension is set or not
@@ -318,10 +298,17 @@ interface ICygnusAltair {
             uint256 rate,
             uint256 positionUsd,
             uint256 positionLp,
-            uint256 health,
-            uint256 liquidity,
-            uint256 shortfall
+            uint256 health
         );
+
+    /**
+     *  @notice Get the latest account liquidity for a user
+     *  @param borrowable Address of the Borrow contract
+     *  @param borrower Address of the borrower
+     *  @return liquidity The account's liquidity (if any)
+     *  @return shortfall The account's shortfall (if any)
+     */
+    function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall);
 
     /**
      *  @notice Get the lender`s full position
@@ -541,6 +528,8 @@ interface ICygnusAltair {
         bytes[] calldata swapdata
     ) external returns (uint256);
 
+    //  Admin only  //
+
     /**
      *  @notice Initializes an extnesion of the router and maps it to a borrowable/collateral/lp token
      *  @param shuttleId the ID of the lending pool
@@ -548,4 +537,19 @@ interface ICygnusAltair {
      *  @custom:security only-admin
      */
     function setAltairExtension(uint256 shuttleId, address extension) external;
+
+    /**
+     *  @notice Sweeps tokens that were sent here by mistake
+     *  @param tokens Array of tokens to sweep
+     *  @param to The receiver of the sweep
+     *  @custom:security only-admin
+     */
+    function sweepTokens(IERC20[] memory tokens, address to) external;
+
+    /**
+     *  @notice Sweeps native
+     *  @custom:security only-admin
+     */
+    function sweepNative() external;
 }
+

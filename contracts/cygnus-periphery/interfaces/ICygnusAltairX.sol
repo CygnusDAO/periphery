@@ -175,4 +175,25 @@ interface ICygnusAltairX {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Sets or updates the name of the Extension
+     *  @param _name The suffix for the new name of the extension
+     *  @custom:security only-admin
+     */
+    function setName(string memory _name) external;
+
+    /**
+     *  @dev Sweeps a token to hangar18 admin
+     *  @param token The address of the token
+     *  @custom:security only-admin
+     */
+    function sweepToken(address token) external;
+
+    /**
+     *  @dev Sweeps the native token (ETH, etc.)
+     *  @custom:security only-admin
+     */
+    function sweepNative() external;
 }
+

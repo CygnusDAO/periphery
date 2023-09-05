@@ -55,11 +55,6 @@ import {ICygnusTerminal} from "./interfaces/core/ICygnusTerminal.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol"; // Permit2
 import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol"; // Permit2
-import {ICygnusNebulaRegistry} from "./interfaces/core/ICygnusNebulaRegistry.sol"; // Oracle
-
-// Aggregators
-import {IAugustusSwapper} from "./interfaces/aggregators/IAugustusSwapper.sol";
-import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/aggregators/IAggregationRouterV5.sol";
 
 /**
  *  @title  CygnusAltair Periphery contract to interact with Cygnus Core contracts
@@ -78,8 +73,9 @@ import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/aggregato
  *          the following aggregators to make sure that slippage is minimal between the borrowed USDC and the
  *          minted LP:
  *            1. 0xProject
- *            2. 1Inch (Legacy and Optmiized Routers)
+ *            2. 1Inch (Legacy and Optimized Routers)
  *            3. Paraswap
+ *            4. OpenOcean
  *
  *          During the leverage functionality the router borrows USD from the borrowable arm contract, and
  *          then converts it to LP Tokens. Since each liquidity token requires different logic to "mint".,
@@ -148,12 +144,12 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public override name = "Cygnus: Altair Router";
+    string public override name = "CygnusDAO: Altair Router";
 
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public constant override version = "1.0.0";
+    string public constant override version = "3.0.0";
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -197,11 +193,6 @@ contract CygnusAltair is ICygnusAltair {
      */
     IWrappedNative public immutable override nativeToken;
 
-    /**
-     *  @inheritdoc ICygnusAltair
-     */
-    ICygnusNebulaRegistry public immutable override nebulaRegistry;
-
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           3. CONSTRUCTOR
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -220,9 +211,6 @@ contract CygnusAltair is ICygnusAltair {
 
         // Assign the USD address set at the factoryn
         usd = _hangar18.usd();
-
-        // Assign registry
-        nebulaRegistry = _hangar18.nebulaRegistry();
     }
 
     /**
@@ -305,6 +293,22 @@ contract CygnusAltair is ICygnusAltair {
         if (_checkTimestamp() > deadline) revert CygnusAltair__TransactionExpired();
     }
 
+    /**
+     *  @notice Convert shares to assets
+     *  @param collateral Address of the CygLP
+     *  @param shares Amount of CygLP redeemed
+     */
+    function _convertToAssets(address collateral, uint256 shares) internal view returns (uint256) {
+        // CygLP Supply
+        uint256 _totalSupply = ICygnusCollateral(collateral).totalSupply();
+
+        // LP assets in collateral
+        uint256 _totalAssets = ICygnusCollateral(collateral).totalAssets();
+
+        // Return the amount of LPs we get by redeeming shares
+        return shares.fullMulDiv(_totalAssets, _totalSupply);
+    }
+
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
@@ -324,13 +328,25 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
+     *  @inheritdoc ICygnusAltair
+     */
+    function getShuttleExtension(uint256 shuttleId) external view override returns (address) {
+        // Get the collateral or borrowable (borrowable, collateral and lp share the extension anyways)
+        (, , , address collateral, ) = hangar18.allShuttles(shuttleId);
+
+        // Return extension
+        return altairExtensions[collateral];
+    }
+
+    /**
      *  @dev Same calculation as all vault tokens, asset = shares * balance / supply
+     *  @dev Relies on the extension to perform the logic
      *  @inheritdoc ICygnusAltair
      */
     function getAssetsForShares(
         address lpTokenPair,
         uint256 shares,
-        uint256 slippage
+        uint256 difference
     ) external view returns (address[] memory tokens, uint256[] memory amounts) {
         // Get the extension for this lp token pair
         address altairX = altairExtensions[lpTokenPair];
@@ -340,27 +356,7 @@ contract CygnusAltair is ICygnusAltair {
 
         // The extension should implement the assets for shares function - ie. Which assets and how much we receive
         // by redeeming `shares` amount of a liquidity token
-        return ICygnusAltairX(altairX).getAssetsForShares(lpTokenPair, shares, slippage);
-    }
-
-    /**
-     *  @inheritdoc ICygnusAltair
-     */
-    function getLPTokenInfo(
-        address lpTokenPair
-    )
-        external
-        view
-        override
-        returns (
-            IERC20[] memory tokens,
-            uint256[] memory prices,
-            uint256[] memory reserves,
-            uint256[] memory tokenDecimals,
-            uint256[] memory reservesUsd
-        )
-    {
-        return nebulaRegistry.getLPTokenInfo(lpTokenPair);
+        return ICygnusAltairX(altairX).getAssetsForShares(lpTokenPair, shares, difference);
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -390,22 +386,19 @@ contract CygnusAltair is ICygnusAltair {
         ICygnusTerminal(terminal).permit(msg.sender, address(this), _amount, deadline, v, r, s);
     }
 
-    /**
-     *  @notice Grants allowance from this contract to a dex' router (or just a contract instead of `router`)
-     *  @param token The address of the token we are approving
-     *  @param router The address of the dex router we are approving (or just a contract)
-     *  @param amount The amount to approve
-     */
-    function _approveToken(address token, address router, uint256 amount) internal {
-        // If allowance is already higher than `amount` return
-        if (IERC20(token).allowance(address(this), router) >= amount) return;
+    function _cygLPToLP(address collateral, uint256 shares) internal view returns (uint256) {
+        // Get total balance of assets
+        uint256 assets = ICygnusCollateral(collateral).totalAssets();
 
-        // Approve token
-        token.safeApprove(router, type(uint256).max);
+        // Get total supply of this CygLP
+        uint256 supply = ICygnusCollateral(collateral).totalSupply();
+
+        // Return LP amount
+        return shares.fullMulDiv(assets, supply);
     }
 
     /**
-     *  @notice Safe internal function to repay the max borrowed amount (in case borrower passed higher amount)
+     *  @notice Safe internal function to repay borrowed amount
      *  @param borrowable The address of the Cygnus borrow arm where the borrowed amount was taken from
      *  @param amountMax The max amount that can be repaid
      *  @param borrower The address of the account that is repaying the borrowed amount
@@ -523,6 +516,31 @@ contract CygnusAltair is ICygnusAltair {
             );
     }
 
+    /**
+     *  @notice Avoid stack too deep
+     */
+    function _latestBorrowerInfo(
+        address collateral,
+        address user
+    )
+        internal
+        view
+        returns (
+            uint256 cygLPBalance,
+            uint256 principal,
+            uint256 borrowBalance,
+            uint256 price,
+            uint256 rate,
+            uint256 positionUsd,
+            uint256 positionLp,
+            uint256 health
+        )
+    {
+        // Position info
+        (cygLPBalance, principal, borrowBalance, price, rate, positionUsd, positionLp, health) = ICygnusCollateral(collateral)
+            .getBorrowerPosition(user);
+    }
+
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     //  POSITIONS ────────────────────────────────────
@@ -557,19 +575,31 @@ contract CygnusAltair is ICygnusAltair {
             uint256 rate,
             uint256 positionUsd,
             uint256 positionLp,
-            uint256 health,
-            uint256 liquidity,
-            uint256 shortfall
+            uint256 health
         )
     {
         // Accrue interest and update balance
         borrowable.sync();
 
-        // Get collateral
+        // Get collateral contract
         address collateral = borrowable.collateral();
 
-        // Return borrower`s latest position with accrued interest
-        return ICygnusCollateral(collateral).getBorrowerPosition(borrower);
+        // Return latest info
+        return _latestBorrowerInfo(collateral, borrower);
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall) {
+        // Accrue interest and update balance
+        borrowable.sync();
+
+        // Get collateral contract
+        address collateral = borrowable.collateral();
+
+        // Liquidity info
+        (liquidity, shortfall) = ICygnusCollateral(collateral).getAccountLiquidity(borrower);
     }
 
     /**
@@ -908,7 +938,7 @@ contract CygnusAltair is ICygnusAltair {
         _checkPermit(collateral, cygLPAmount, deadline, permitData);
 
         // Get redeem amount
-        uint256 redeemAmount = cygLPAmount.mulWad(ICygnusCollateral(collateral).exchangeRate());
+        uint256 redeemAmount = _convertToAssets(collateral, cygLPAmount);
 
         // Encode data to bytes
         bytes memory redeemData = _createDeleverageData(
@@ -969,5 +999,44 @@ contract CygnusAltair is ICygnusAltair {
         // assets by burning 1 LP in UniV2, or 1 BPT in a Balancer Weighted Pool, etc. Helpful when deleveraging
         // liquidity tokens into USDC.
         altairExtensions[ICygnusCollateral(collateral).underlying()] = extension;
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     *  @custom:security only-admin
+     */
+    function sweepTokens(IERC20[] memory tokens, address to) external override {
+        // Get latest admin
+        address admin = hangar18.admin();
+
+        /// @custom:error MsgSenderNotAdmin
+        if (msg.sender != admin) revert CygnusAltair__MsgSenderNotAdmin();
+
+        // Transfer each token to admin
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Balance of token
+            uint256 balance = tokens[i].balanceOf(address(this));
+
+            // Send to admin
+            if (balance > 0) address(tokens[i]).safeTransfer(to, balance);
+        }
+    }
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     *  @custom:security only-admin
+     */
+    function sweepNative() external override {
+        // Get latest admin
+        address admin = hangar18.admin();
+
+        /// @custom:error MsgSenderNotAdmin
+        if (msg.sender != admin) revert CygnusAltair__MsgSenderNotAdmin();
+
+        // Get native balance
+        uint256 balance = address(this).balance;
+
+        // Get ETH out
+        if (balance > 0) SafeTransferLib.safeTransferETH(admin, balance);
     }
 }

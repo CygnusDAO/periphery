@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.17;
 
+interface IAlgebraPool {
+    function globalState() external view returns (uint160, int24, uint16, uint16, uint8, uint8, bool);
+}
+
 interface IHypervisor {
     function getTotalAmounts() external view returns (uint256 total0, uint256 total1);
 
@@ -54,7 +58,13 @@ interface IHypervisor {
 }
 
 interface IGammaProxy {
-    function deposit(uint256 deposit0, uint256 deposit1, address to, address pos, uint256[4] memory inMin) external returns (uint256 liquidity);
+    function deposit(
+        uint256 deposit0,
+        uint256 deposit1,
+        address to,
+        address pos,
+        uint256[4] memory inMin
+    ) external returns (uint256 liquidity);
 
-    function getDepositAmount(address, address, uint256) external returns (uint256, uint256);
+    function getDepositAmount(address, address, uint256) external view returns (uint256, uint256);
 }

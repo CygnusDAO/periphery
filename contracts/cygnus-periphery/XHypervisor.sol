@@ -45,18 +45,19 @@ import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 import {FixedPointMathLib} from "./libraries/FixedPointMathLib.sol";
 
 // Interfaces
+import {IERC20} from "./interfaces/core/IERC20.sol";
 import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
-import {IHypervisor, IGammaProxy} from "./interfaces-extension/IHypervisor.sol";
+import {IAlgebraPool, IHypervisor, IGammaProxy} from "./interfaces-extension/IHypervisor.sol";
 import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 
 /**
- *  @title  ExtensionHypervisor Extension for Hypervisor pools
+ *  @title  XHypervisor Extension for Hypervisor pools
  *  @author CygnusDAO
  */
-contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
+contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           1. LIBRARIES
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -85,6 +86,65 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           5. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /*  ─────────────────────────────────────────────── Private ───────────────────────────────────────────────  */
+
+    /**
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @return Whether or not the dex aggregator is a legacy aggregator
+     */
+    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) private pure returns (bool) {
+        // Only legacy aggregators are open ocean v1 and one inch v1
+        return
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY || dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY;
+    }
+
+    /**
+     *  @notice Returns the weight of each asset in the LP
+     *  @param lpTokenPair The address of the LP
+     *  @return weight0 The weight of token0 in the LP
+     *  @return weight1 The weight of token1 in the LP
+     */
+    function _tokenWeights(
+        address lpTokenPair,
+        address token0,
+        address token1,
+        address gammaUniProxy
+    ) private view returns (uint256 weight0, uint256 weight1) {
+        // Get scalars of each toekn
+        uint256 scalar0 = 10 ** IERC20(token0).decimals();
+        uint256 scalar1 = 10 ** IERC20(token1).decimals();
+
+        // Calculate difference in units
+        uint256 scalarDifference = scalar0.divWad(scalar1);
+
+        // Adjust for token decimals
+        uint256 decimalsDenominator = scalarDifference > 1e12 ? 1e6 : 1;
+
+        // Get sqrt price from Algebra pool
+        (uint256 sqrtPriceX96, , , , , , ) = IAlgebraPool(IHypervisor(lpTokenPair).pool()).globalState();
+
+        // Convert to price with scalar diff and denom to take into account decimals of tokens
+        uint256 price = ((sqrtPriceX96 ** 2 * (scalarDifference / decimalsDenominator)) / (2 ** 192)) * decimalsDenominator;
+
+        // How much we would need to deposit of token1 if we are depositing 1 unit of token0
+        (uint256 low1, uint256 high1) = IGammaProxy(gammaUniProxy).getDepositAmount(lpTokenPair, token0, scalar0);
+
+        // Final token1 amount
+        uint256 token1Amount = ((low1 + high1) / 2).divWad(scalar1);
+
+        // Get ratio
+        uint256 ratio = token1Amount.divWad(price);
+
+        // Return weight of token0 in the LP
+        weight0 = 1e36 / (ratio + 1e18);
+
+        // Weight of token1
+        weight1 = 1e18 - weight0;
+    }
+
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
      *  @inheritdoc ICygnusAltairX
@@ -128,6 +188,63 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ─────────────────────────────────────────────── Private ───────────────────────────────────────────────  */
 
     /**
+     *  @notice Swaps tokens with legacy aggregators
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @param token0 The address of token0 from the LP Token
+     *  @param token1 The address of token1 from the LP Token
+     *  @param amountUsd The amount of USD to convert to LP
+     *  @param swapdata Bytes array consisting of 1inch API swap data
+     *  @param lpTokenPair The address of the LP Token
+     */
+    function _swapTokensLegacy(
+        ICygnusAltair.DexAggregator dexAggregator,
+        address token0,
+        address token1,
+        uint256 amountUsd,
+        bytes[] memory swapdata,
+        address lpTokenPair,
+        address gammaUniProxy
+    ) private {
+        // Get the token weights
+        (uint256 weight0, uint256 weight1) = _tokenWeights(lpTokenPair, token0, token1, gammaUniProxy);
+
+        // Amount of usd to swap to token0
+        uint256 token0Amount = weight0.mulWad(amountUsd);
+
+        // Amount of usd to swap to token1
+        uint256 token1Amount = weight1.mulWad(amountUsd);
+
+        // Swap USD to tokenA with the actual token amount, since we are using a legacy method
+        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, token0Amount);
+
+        // Swap USD to tokenB
+        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, token1Amount);
+    }
+
+    /**
+     *  @notice Swaps tokens with legacy aggregators
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @param token0 The address of token0 from the LP Token
+     *  @param token1 The address of token1 from the LP Token
+     *  @param amountUsd The amount of USD to convert to LP
+     *  @param swapdata Bytes array consisting of 1inch API swap data
+     */
+    function _swapTokensOptimized(
+        ICygnusAltair.DexAggregator dexAggregator,
+        address token0,
+        address token1,
+        uint256 amountUsd,
+        bytes[] memory swapdata
+    ) private {
+        // Swap USD to token0 using dex aggregator - amountUsd does not matter as the actual amount is encoded
+        // in the swapdata, pass amountUsd to just approve the aggregator's router if needed
+        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, amountUsd);
+
+        // Swap USD to token1 using dex aggregator
+        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, amountUsd);
+    }
+
+    /**
      *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsd` of USD
      *  @notice Maximum 2 swaps
      *  @param token0 The address of token0 from the LP Token
@@ -144,11 +261,16 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
         bytes[] memory swapdata,
         address lpTokenPair
     ) private returns (uint256 liquidity) {
-        // Swap USD to tokenA using dex aggregator
-        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, amountUsd);
+        // Get the whitelsited address - the only one allowed to deposit in hypervisor
+        address gammaUniProxy = IHypervisor(lpTokenPair).whitelistedAddress();
 
-        // Swap USD to tokenA using dex aggregator
-        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, amountUsd);
+        // Check if the aggregator is a legacy aggregator (ie uses a hardcoded method such as `swap`)
+        if (_isLegacy(dexAggregator)) {
+            // Swap with open ocean v1 or one inch v1
+            _swapTokensLegacy(dexAggregator, token0, token1, amountUsd, swapdata, lpTokenPair, gammaUniProxy);
+        }
+        // Not legacy, swap with calldata
+        else _swapTokensOptimized(dexAggregator, token0, token1, amountUsd, swapdata);
 
         // Check balance of token0
         uint256 deposit0 = _checkBalance(token0);
@@ -162,10 +284,7 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Approve token1 in hypervisor
         _approveToken(token1, lpTokenPair, deposit1);
 
-        // Get the whitelsited address - the only one allowed to deposit in hypervisor
-        address gammaUniProxy = IHypervisor(lpTokenPair).whitelistedAddress();
-
-        // Get the minimum and maximum limit of token1 deposit
+        // Get the minimum and maximum limit of token1 deposit given our balance of token0
         (uint256 low1, uint256 high1) = IGammaProxy(gammaUniProxy).getDepositAmount(lpTokenPair, token0, deposit0);
 
         // If our balance of token1 is lower than the limit, get the limit of token0
@@ -213,7 +332,6 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
                 ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, amountTokenB))
                 : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, amountTokenA), amountTokenB);
 
-
             // Explicit return
             return amountA + amountB;
         }
@@ -253,7 +371,7 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
         bytes[] memory swapdata
     ) internal returns (uint256 usdAmount) {
         // Calculate LP amount to redeem
-        uint256 redeemAmount = seizeTokens.mulWad(ICygnusCollateral(collateral).exchangeRate());
+        uint256 redeemAmount = _convertToAssets(collateral, seizeTokens);
 
         // Flash redeem the LP back to the contract
         ICygnusCollateral(collateral).flashRedeemAltair(address(this), redeemAmount, LOCAL_BYTES);
@@ -497,22 +615,5 @@ contract ExtensionHypervisor is CygnusAltairX, ICygnusAltairCall {
 
         // Send leftover token1 to user
         if (leftAmount1 > 0) token1.safeTransfer(recipient, leftAmount1);
-    }
-
-    // Admin
-
-    /**
-     *  @notice Updates the name of the extension
-     *  @custom:security only-admin
-     */
-    function setName(string memory _name) external {
-        // Get latest admin
-        address admin = hangar18.admin();
-
-        /// @custom:error MsgSenderNotAdmin
-        if (msg.sender != admin) revert("Only admin");
-
-        // Update name
-        name = _name;
     }
 }

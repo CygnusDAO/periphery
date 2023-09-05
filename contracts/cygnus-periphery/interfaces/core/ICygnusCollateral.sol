@@ -21,7 +21,7 @@ pragma solidity >=0.8.17;
 import {IERC20Permit} from "./IERC20Permit.sol";
 import {IAllowanceTransfer} from "./IAllowanceTransfer.sol";
 
-interface ICygnusCollateral is IERC20Permit { 
+interface ICygnusCollateral is IERC20Permit {
     /**
      *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
      */
@@ -38,6 +38,25 @@ interface ICygnusCollateral is IERC20Permit {
     function borrowable() external view returns (address);
 
     /**
+     *  @return totalSupply The total supply of CygLP
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     *  @return totalAssets The total amount of LPs owned by the vault
+     */
+    function totalAssets() external view returns (uint256);
+
+    /**
+     *  @notice Gets an account's liquidity or shortfall
+     *
+     *  @param borrower The address of the borrower
+     *  @return liquidity The account's liquidity in USDC
+     *  @return shortfall If user has no liquidity, return the shortfall in USDC
+     */
+    function getAccountLiquidity(address borrower) external view returns (uint256 liquidity, uint256 shortfall);
+
+    /**
      *  @notice Gets the account's total position value in USD (LP Tokens owned multiplied by LP price). It uses the oracle to get the
      *          price of the LP Token and uses the current exchange rate.
      *
@@ -49,8 +68,6 @@ interface ICygnusCollateral is IERC20Permit {
      *  @return price The current liquidity token price
      *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
      *  @return positionLp The borrower`s position in LP Tokens
-     *  @return rate The current exchange rate between CygLP and LP Token
-     *  @return health The user's current loan health (once it reaches 100% the user becomes liquidatable)
      */
     function getBorrowerPosition(
         address borrower
@@ -65,9 +82,7 @@ interface ICygnusCollateral is IERC20Permit {
             uint256 positionUsd,
             uint256 positionLp,
             uint256 rate,
-            uint256 health,
-            uint256 liquidity,
-            uint256 shortfall
+            uint256 health
         );
 
     /**
