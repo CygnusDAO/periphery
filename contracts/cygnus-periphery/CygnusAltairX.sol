@@ -47,10 +47,11 @@ import {FixedPointMathLib} from "./libraries/FixedPointMathLib.sol";
 import {IERC20} from "./interfaces/core/IERC20.sol";
 import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
-import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
+import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol";
+import {ICygnusNebulaRegistry} from "./interfaces/core/ICygnusNebulaRegistry.sol"; // Oracle
 
 // Aggregators
 import {IAugustusSwapper} from "./interfaces/aggregators/IAugustusSwapper.sol";

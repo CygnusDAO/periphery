@@ -54,4 +54,6 @@ interface IHangar18 {
     ) external view returns (bool launched, uint88 shuttleId, address borrowable, address collateral, uint96 orbiterId);
 
     function nebulaRegistry() external view returns (ICygnusNebulaRegistry);
+
+    function shuttlesDeployed() external view returns (uint256);
 }

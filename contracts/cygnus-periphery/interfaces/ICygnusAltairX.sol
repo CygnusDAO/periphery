@@ -22,6 +22,7 @@ pragma solidity >=0.8.17;
 import {IERC20} from "./core/IERC20.sol";
 import {IHangar18} from "./core/IHangar18.sol";
 import {IWrappedNative} from "./IWrappedNative.sol";
+import {ICygnusNebulaRegistry} from "./core/ICygnusNebulaRegistry.sol";
 
 /**
  *  @notice Interface to interact with Cygnus' router contract
@@ -196,4 +197,3 @@ interface ICygnusAltairX {
      */
     function sweepNative() external;
 }
-

@@ -316,12 +316,29 @@ interface ICygnusAltair {
      *  @param lender The address of the lender
      *  @return cygUsdBalance The `lender's` balance of CygUSD
      *  @return rate The currente exchange rate
-     *  @return positionInUsd The lender's position in USD
+     *  @return positionUsd The lender's position in USD
      */
     function latestLenderPosition(
         ICygnusBorrow borrowable,
         address lender
-    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionInUsd);
+    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionUsd);
+
+    /**
+     *  @notice Get the lender's TVL in Cygnus
+     *  @param lender The address of the lender
+     *  @return cygUsdBalance The `lender's` balance of CygUSD
+     *  @return positionUsd The lender's position in USD
+     */
+    function latestLenderAll(address lender) external returns (uint256 cygUsdBalance, uint256 positionUsd);
+
+    /**
+     *  @notice Get the borrower's TVL in Cygnus
+     *  @param borrower The address of the borrower
+     *  @return principal The original loaned USDC amount (without interest)
+     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
+     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
+     */
+    function latestBorrowerAll(address borrower) external returns (uint256 principal, uint256 borrowBalance, uint256 positionUsd);
 
     /**
      *  @notice Get the whole lending pool info with latest interest rate accruals
@@ -552,4 +569,3 @@ interface ICygnusAltair {
      */
     function sweepNative() external;
 }
-

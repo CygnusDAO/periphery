@@ -125,7 +125,7 @@ contract CygnusAltair is ICygnusAltair {
     bytes internal constant LOCAL_BYTES = new bytes(0);
 
     /**
-     *  @notice Internal record of all Altair Extensions - Borrowable/Collateral address to extension contract implementation.
+     *  @notice Internal record of all Altair Extensions - Borrowable/Collateral/LP address to extension contract implementation.
      */
     mapping(address => address) internal altairExtensions;
 
@@ -144,12 +144,12 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public override name = "CygnusDAO: Altair Router";
+    string public override name = "Cygnus: Altair Router";
 
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public constant override version = "3.0.0";
+    string public constant override version = "1.0.0";
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -305,7 +305,7 @@ contract CygnusAltair is ICygnusAltair {
         // LP assets in collateral
         uint256 _totalAssets = ICygnusCollateral(collateral).totalAssets();
 
-        // Return the amount of LPs we get by redeeming shares
+        // Return the amount of LPs we get by redeeming shares, rounds down
         return shares.fullMulDiv(_totalAssets, _totalSupply);
     }
 
@@ -384,17 +384,6 @@ contract CygnusAltair is ICygnusAltair {
 
         // Call permit on terminal token
         ICygnusTerminal(terminal).permit(msg.sender, address(this), _amount, deadline, v, r, s);
-    }
-
-    function _cygLPToLP(address collateral, uint256 shares) internal view returns (uint256) {
-        // Get total balance of assets
-        uint256 assets = ICygnusCollateral(collateral).totalAssets();
-
-        // Get total supply of this CygLP
-        uint256 supply = ICygnusCollateral(collateral).totalSupply();
-
-        // Return LP amount
-        return shares.fullMulDiv(assets, supply);
     }
 
     /**
@@ -546,6 +535,67 @@ contract CygnusAltair is ICygnusAltair {
     //  POSITIONS ────────────────────────────────────
 
     /**
+     *  @notice Returns the borrower`s overall positions (borrows, position in usd and balance) across the whole protocol
+     *  @notice Accrues interest
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestBorrowerAll(address user) external returns (uint256 principal, uint256 borrowBalance, uint256 positionUsd) {
+        // Total lending pools in Cygnus
+        uint256 totalShuttles = hangar18.shuttlesDeployed();
+
+        // Loop through each pool and update borrower's position
+        for (uint256 i = 0; i < totalShuttles; i++) {
+            // Get borrowale and collateral for shuttle `i`
+            (, , address borrowable, address collateral, ) = hangar18.allShuttles(i);
+
+            // Accrue interest in borrowable
+            ICygnusBorrow(borrowable).sync();
+
+            // Get collateral position
+            (, uint256 _principal, uint256 _borrowBalance, , , uint256 _positionUsd, , ) = ICygnusCollateral(collateral)
+                .getBorrowerPosition(user);
+
+            // Increase total principal
+            principal += _principal;
+
+            // Increase total borrowed balance
+            borrowBalance += _borrowBalance;
+
+            // Increase the borrower`s position in USD
+            positionUsd += _positionUsd;
+        }
+    }
+
+    /**
+     *  @notice Returns the lenders`s overall positions (cygUsd and position in USD) across the whole protocol
+     *  @notice Accrues interest
+     *  @inheritdoc ICygnusAltair
+     */
+    function latestLenderAll(address user) external returns (uint256 cygUsdBalance, uint256 positionUsd) {
+        // Total lending pools in Cygnus
+        uint256 totalShuttles = hangar18.shuttlesDeployed();
+
+        // Loop through each pool and update lender's position
+        for (uint256 i = 0; i < totalShuttles; i++) {
+            // Get borrowable contract for shuttle `i`
+            (, , address borrowable, , ) = hangar18.allShuttles(i);
+
+            // Accrue interest
+            ICygnusBorrow(borrowable).sync();
+
+            // Get lender position
+            (uint256 _cygUsdBalance, , uint256 _positionUsd) = ICygnusBorrow(borrowable).getLenderPosition(user);
+
+            // Increase shares balance
+            cygUsdBalance += _cygUsdBalance;
+
+            // Increase assets balance
+            positionUsd += _positionUsd;
+        }
+    }
+
+    /**
+     *  @notice Accrues interest
      *  @inheritdoc ICygnusAltair
      */
     function latestLenderPosition(
@@ -560,6 +610,7 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
+     *  @notice Accrues interest
      *  @inheritdoc ICygnusAltair
      */
     function latestBorrowerPosition(
@@ -589,6 +640,7 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
+     *  @notice Accrues interest
      *  @inheritdoc ICygnusAltair
      */
     function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall) {
@@ -603,6 +655,7 @@ contract CygnusAltair is ICygnusAltair {
     }
 
     /**
+     *  @notice Accrues interest
      *  @inheritdoc ICygnusAltair
      */
     function latestShuttleInfo(
@@ -937,7 +990,7 @@ contract CygnusAltair is ICygnusAltair {
         // Permit if any
         _checkPermit(collateral, cygLPAmount, deadline, permitData);
 
-        // Get redeem amount
+        // Get redeem amount, rounding down
         uint256 redeemAmount = _convertToAssets(collateral, cygLPAmount);
 
         // Encode data to bytes
