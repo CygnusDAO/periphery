@@ -8,6 +8,7 @@
 | Integrated with 0xProject's Swap API                           | (30/06/2023) |
 | Added Fallback function for each extension                     | (06/07/2023) |
 | Integrated with OpenOcean's Aggregator API                     | (02/08/2023) |
+| Added emergency UniswapV3 deleverage/leverage/liquidations (*) | (10/15/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
@@ -20,6 +21,7 @@ converts it to liquidity. Before the leverage or de-leverage function call,
 we calculate quotes to estimate what the amount will be during each swap stage allowing users to choose the best
 quote from the DEX aggregators. See the function argument `DexAggregator dexAggregator` for leverage, deleverage and flash liquidate below.
 
+(*) Since the 15th of October of 2022 the router is integrated with UniswapV3's router on each chain. This was done in case of emergencies only! In the unlikely scenario where all aggregators start failing or there is a problem with Cygnus frontend, or there is any problem where users need to quickly deleverage or flash liquidate positions but for the above cases they are unable to do so, users can now leverage/deleverage/liquidate completely on chain using UnsiwapV3, without needing to build any calldata. Users can for example call it directly from etherscan or the block explorer without relying on any frontend to build the calldata! If interacting from etherscan or your own script always make sure to put a correct `minUsdReceived` param. 
 
  <hr/>
  
