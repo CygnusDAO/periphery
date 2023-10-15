@@ -22,7 +22,13 @@
         }
       ],
       "name": "altairBorrow_O9E",
-      "outputs": [],
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "liquidity",
+          "type": "uint256"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "function"
     },
@@ -73,7 +79,13 @@
         }
       ],
       "name": "altairRedeem_u91A",
-      "outputs": [],
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "usdAmount",
+          "type": "uint256"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "function"
     }

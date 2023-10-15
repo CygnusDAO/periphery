@@ -58,6 +58,11 @@ import {IAugustusSwapper} from "./interfaces/aggregators/IAugustusSwapper.sol";
 import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/aggregators/IAggregationRouterV5.sol";
 import {IOpenOceanExchange, IOpenOceanCaller} from "./interfaces/aggregators/IOpenOceanExchange.sol";
 
+import {IUniswapV3Router} from "./interfaces/aggregators/IUniswapV3Router.sol";
+import {IUniswapV3Factory} from "./interfaces/aggregators/IUniswapV3Factory.sol";
+import {IUniswapV3Pool} from "./interfaces/aggregators/IUniswapV3Pool.sol";
+import {IQuoterV2} from "./interfaces/aggregators/IUniswapV3Quoter.sol";
+
 /**
  *  @title  CygnusAltairX Extension for the main periphery contract `CygnusAltair`
  *  @author CygnusDAO
@@ -102,6 +107,16 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     bytes internal constant LOCAL_BYTES = new bytes(0);
 
     /**
+     *  @notice The address of UniswapV3's QuoterV2 contract on this chain
+     */
+    address internal constant UNISWAP_V3_QUOTER = 0x61fFE014bA17989E743c5F6cB21bF9697530B21e;
+
+    /**
+     *  @notice The address of UniswapV3's Factory contract on this chain
+     */
+    address internal constant UNISWAP_V3_FACTORY = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+
+    /**
      *  @notice Stored contract address to check for delegate call only
      */
     address internal immutable extensionAddress;
@@ -142,6 +157,11 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @inheritdoc ICygnusAltairX
      */
     address public constant override OPEN_OCEAN_EXCHANGE_PROXY = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
+
+    /**
+     *  @inheritdoc ICygnusAltairX
+     */
+    address public constant override UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
     /**
      *  @inheritdoc ICygnusAltairX
@@ -349,6 +369,55 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
     }
 
+    /**
+     *  @notice Calculates the pool with the best fee to swap `tokenIn` to `tokenOut` given `amountIn`
+     *  @param tokenIn The address of the token we are swapping
+     *  @param tokenOut The address of the token we are receiving
+     *  @param amountIn The amount of `tokenIn` we are swapping
+     */
+    function _optimalPoolFee(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint24 poolFee) {
+        /// Get the uniswapv3 factory on this chain
+        IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
+
+        // Get max amount
+        uint256 maxAmount = 0;
+
+        // Possible fees (100, 500, 3000, 10000)
+        uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
+
+        // Get the pool given each fee. If it exists, query the liquidity to filter out dead pools. If there's
+        // a pool for this `fee` and has some amount of liquidity then query the amount we would receiving
+        // by swapping `tokenIn` to `tokenOut` on this pool and use the `amountOut` to the previously maxed amount.
+        for (uint256 i = 0; i < fees.length; i++) {
+            // Get the pool given `fee`
+            address pool = uniswapFactory.getPool(tokenIn, tokenOut, fees[i]);
+
+            // Check if pool exists
+            if (pool != address(0)) {
+                // Get the liquidity for this pool
+                uint256 liquidity = IUniswapV3Pool(pool).liquidity();
+
+                // Use a low floor value as pools with low decimal tokens have lower liquidity value.
+                if (liquidity > 10e6) {
+                    // Get the amount we would receive by swapping the token with this pool
+                    (uint256 amountOut, , , ) = IQuoterV2(UNISWAP_V3_QUOTER).quoteExactInputSingle(
+                        IQuoterV2.QuoteExactInputSingleParams({
+                            tokenIn: tokenIn,
+                            tokenOut: tokenOut,
+                            amountIn: amountIn,
+                            fee: fees[i],
+                            sqrtPriceLimitX96: 0
+                        })
+                    );
+
+                    // If amountOut is higher than the last maxAmount then set the poolFee and
+                    // maxAmount as the highest else loop again
+                    if (amountOut > maxAmount) (poolFee, maxAmount) = (fees[i], amountOut);
+                }
+            }
+        }
+    }
+
     // Swap tokens via Paraswap
 
     /**
@@ -509,10 +578,40 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
+     *  @notice EMERGENCY ONLY - To be used in cases where aggregators stop working and users need to deleverage/liquidate positions.
+     *  @notice Creates the swap with UniswapV3's router on this chain
+     *  @param tokenIn The token we are swapping
+     *  @param tokenOut The token we are receiving
+     *  @param amountIn The amount of `tokenIn` we are swapping
+     *  @return amountOut The amount of `tokenOut` we receive
+     */
+    function _swapTokensUniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
+        /// Check allowance and approve UniswapV3 Router in token in if necessary
+        _approveToken(tokenIn, UNISWAP_V3_ROUTER, amountIn);
+
+        uint24 optimalPoolFee = _optimalPoolFee(tokenIn, tokenOut, amountIn);
+
+        // Fee possibilities: 500, 3000, 10000
+        amountOut = IUniswapV3Router(UNISWAP_V3_ROUTER).exactInputSingle(
+            IUniswapV3Router.ExactInputSingleParams({
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
+                fee: optimalPoolFee,
+                recipient: address(this),
+                deadline: type(uint32).max,
+                amountIn: amountIn,
+                amountOutMinimum: 0, // No need for a minimimum amountOut since `removeLPAndRepay` does check at the end
+                sqrtPriceLimitX96: 0
+            })
+        );
+    }
+
+    /**
      *  @dev Internal function to swap tokens using the specified aggregator.
      *  @param dexAggregator The aggregator to use for the token swap
      *  @param swapdata The encoded swap data for the aggregator.
      *  @param srcToken The source token to swap
+     *  @param dstToken The token we are receiving (used only for Uniswapv3)
      *  @param srcAmount The amount of source token to swap
      *  @return amountOut The amount of swapped tokens received
      */
@@ -520,6 +619,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         ICygnusAltair.DexAggregator dexAggregator,
         bytes memory swapdata,
         address srcToken,
+        address dstToken,
         uint256 srcAmount
     ) internal returns (uint256 amountOut) {
         // Check which dex aggregator to use
@@ -546,6 +646,10 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         // Case 5: OPEN OCEAN V2
         else if (dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_V2) {
             amountOut = _swapTokensOpenOceanV2(swapdata, srcToken, srcAmount);
+        }
+        // Case 6: UNISWAPV3 - This is only for EMERGENCY deleverage/liquidiations!
+        else if (dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY) {
+            amountOut = _swapTokensUniswapV3(srcToken, dstToken, srcAmount);
         }
     }
 

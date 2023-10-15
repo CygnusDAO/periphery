@@ -56,6 +56,11 @@ import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 /**
  *  @title  XHypervisor Extension for Hypervisor pools
  *  @author CygnusDAO
+ *  @notice There are 2 ways to swap tokens: `swapTokensOptimized` and `swapTokensLegacy`. Legacy methods require
+ *          the actual amount of tokenIn being swapped as we need to pass this amount to the aggregator router in
+ *          the function call. With optimized routers we perform a low level call so the amount of tokenIn being
+ *          swapped is already encoded in the call. We did this only for leverage functions as when we deleverage
+ *          we already know the amount of tokenIn we need to swap as we have done an LP burn prior to this.
  */
 contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -97,7 +102,9 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) private pure returns (bool) {
         // Only legacy aggregators are open ocean v1 and one inch v1
         return
-            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY || dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY;
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
     }
 
     /**
@@ -215,10 +222,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         uint256 token1Amount = weight1.mulWad(amountUsd);
 
         // Swap USD to tokenA with the actual token amount, since we are using a legacy method
-        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, token0Amount);
+        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, token0, token0Amount);
 
         // Swap USD to tokenB
-        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, token1Amount);
+        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, token1, token1Amount);
     }
 
     /**
@@ -238,10 +245,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     ) private {
         // Swap USD to token0 using dex aggregator - amountUsd does not matter as the actual amount is encoded
         // in the swapdata, pass amountUsd to just approve the aggregator's router if needed
-        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, amountUsd);
+        if (token0 != usd) _swapTokensAggregator(dexAggregator, swapdata[0], usd, token0, amountUsd);
 
         // Swap USD to token1 using dex aggregator
-        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, amountUsd);
+        if (token1 != usd) _swapTokensAggregator(dexAggregator, swapdata[1], usd, token1, amountUsd);
     }
 
     /**
@@ -329,8 +336,8 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         if (token0 == usd || token1 == usd) {
             // Convert the other token to USD and return
             (amountA, amountB) = token0 == usd
-                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, amountTokenB))
-                : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, amountTokenA), amountTokenB);
+                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB))
+                : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA), amountTokenB);
 
             // Explicit return
             return amountA + amountB;
@@ -338,10 +345,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
 
         // ─────────────────── 2. Not USD, swap both to USD
         // Swap token0 to USD
-        amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, amountTokenA);
+        amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
 
         // Swap token1 to USD
-        amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, amountTokenB);
+        amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
 
         // USD balance
         return amountA + amountB;

@@ -1,7 +1,7 @@
 {
   "_format": "hh-sol-artifact-1",
-  "contractName": "CygnusAltairX",
-  "sourceName": "contracts/cygnus-periphery/CygnusAltairX.sol",
+  "contractName": "ICygnusAltairX",
+  "sourceName": "contracts/cygnus-periphery/interfaces/ICygnusAltairX.sol",
   "abi": [
     {
       "inputs": [],
@@ -68,7 +68,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -81,7 +81,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -94,7 +94,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -107,7 +107,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -133,7 +133,7 @@
           "type": "address"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "pure",
       "type": "function"
     },
     {
@@ -254,10 +254,6 @@
       ],
       "stateMutability": "view",
       "type": "function"
-    },
-    {
-      "stateMutability": "payable",
-      "type": "receive"
     }
   ],
   "bytecode": "0x",

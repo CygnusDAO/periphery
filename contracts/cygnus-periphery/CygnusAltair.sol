@@ -76,6 +76,12 @@ import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol"; // 
  *            2. 1Inch (Legacy and Optimized Routers)
  *            3. Paraswap
  *            4. OpenOcean
+ *            5. UniswapV3 (Emergency Only!!!) (*)
+ *
+ *          (*) In the unlikely case where ALL aggregators start failing at the same time (APIs are down, etc.),
+ *          users can perform emergency deleverage or emergency liquidations with UniswapV3's router. The end
+ *          result would be suffering higher slippage and liquidators receiving less liquidation profit, but
+ *          this way users are always guaranteed to be able to adjust their positions.
  *
  *          During the leverage functionality the router borrows USD from the borrowable arm contract, and
  *          then converts it to LP Tokens. Since each liquidity token requires different logic to "mint".,
@@ -125,7 +131,7 @@ contract CygnusAltair is ICygnusAltair {
     bytes internal constant LOCAL_BYTES = new bytes(0);
 
     /**
-     *  @notice Internal record of all Altair Extensions - Borrowable/Collateral/LP address to extension contract implementation.
+     *  @notice Internal record of all Altair Extensions - Borrowable/Collateral address to extension contract implementation.
      */
     mapping(address => address) internal altairExtensions;
 
@@ -177,6 +183,11 @@ contract CygnusAltair is ICygnusAltair {
      *  @inheritdoc ICygnusAltair
      */
     address public constant override OPEN_OCEAN_EXCHANGE_PROXY = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    address public constant override UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -507,6 +518,8 @@ contract CygnusAltair is ICygnusAltair {
 
     /**
      *  @notice Avoid stack too deep
+     *  @param collateral The address of the CygLP
+     *  @param user The address of the borrower
      */
     function _latestBorrowerInfo(
         address collateral,
@@ -709,7 +722,7 @@ contract CygnusAltair is ICygnusAltair {
         uint256 deadline,
         bytes calldata permitData
     ) external virtual override checkDeadline(deadline) {
-        // Check permit
+        // Check permit on borrowable (borrow allowance)
         _checkPermit(borrowable, amount, deadline, permitData);
 
         // Borrow amount
@@ -732,7 +745,7 @@ contract CygnusAltair is ICygnusAltair {
         // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
-        // Check permit - transfer USD from sender to borrowable
+        // Check permit on USDC
         _checkPermit(usd, amount, deadline, permitData);
 
         // Transfer USD from msg sender to borrow contract
@@ -776,7 +789,7 @@ contract CygnusAltair is ICygnusAltair {
         // Transfer underlying to vault
         IAllowanceTransfer(PERMIT2).transferFrom(msg.sender, borrowable, uint160(amount), usd);
 
-        // Call borrow to update borrower's borrow balance and repay loan
+        // Call borrow with 0 borrowAmount to update borrower's borrow balance and repay loan
         ICygnusBorrow(borrowable).borrow(borrower, address(0), 0, LOCAL_BYTES);
     }
 
@@ -808,7 +821,7 @@ contract CygnusAltair is ICygnusAltair {
             signature
         );
 
-        // Call borrow to update borrower's borrow balance and repay loan
+        // Call borrow with 0 borrowAmount to update borrower's borrow balance and repay loan
         ICygnusBorrow(borrowable).borrow(borrower, address(0), 0, LOCAL_BYTES);
     }
 
@@ -825,7 +838,8 @@ contract CygnusAltair is ICygnusAltair {
         uint256 deadline,
         bytes calldata permitData
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
-        // Amount to repay
+        // Ensure that the amount to repay is never more than currently owed.
+        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Check permit
@@ -889,7 +903,8 @@ contract CygnusAltair is ICygnusAltair {
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata signature
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
-        // Amount to repay
+        // Ensure that the amount to repay is never more than currently owed.
+        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Signture transfer
@@ -923,7 +938,8 @@ contract CygnusAltair is ICygnusAltair {
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
-        // Amount to repay
+        // Ensure that the amount to repay is never more than currently owed.
+        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Get LP TokenPair
@@ -961,7 +977,7 @@ contract CygnusAltair is ICygnusAltair {
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
     ) external virtual override checkDeadline(deadline) returns (uint256 liquidity) {
-        // Check permit
+        // Check permit on borrowable (borrow allowance)
         _checkPermit(borrowable, usdAmount, deadline, permitData);
 
         // Encode data to bytes
@@ -987,7 +1003,7 @@ contract CygnusAltair is ICygnusAltair {
         DexAggregator dexAggregator,
         bytes[] calldata swapdata
     ) external virtual override checkDeadline(deadline) returns (uint256 usdAmount) {
-        // Permit if any
+        // Check permit on collateral (transfer allowance)
         _checkPermit(collateral, cygLPAmount, deadline, permitData);
 
         // Get redeem amount, rounding down

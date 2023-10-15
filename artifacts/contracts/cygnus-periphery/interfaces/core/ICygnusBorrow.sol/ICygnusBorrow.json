@@ -5,444 +5,12 @@
   "abi": [
     {
       "inputs": [],
-      "name": "CygnusBorrowControl__ParameterNotInRange",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrowVoid__CTokenError",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrowVoid__OnlyHarvesterAllowed",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__BorrowExceedsTotalBalance",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__BorrowRepayOverload",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__CantRepayZero",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__InsufficientLiquidity",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__InsufficientUsdReceived",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__InvalidRepayAmount",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusBorrow__MasterApprovalDisabled",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusTerminal__CantMintZeroShares",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusTerminal__CantRedeemZeroAssets",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusTerminal__CantSweepUnderlying",
-      "type": "error"
-    },
-    {
-      "inputs": [],
-      "name": "CygnusTerminal__MsgSenderNotAdmin",
-      "type": "error"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "cashStored",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "totalBorrowsStored",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "interestAccumulated",
-          "type": "uint256"
-        }
-      ],
-      "name": "AccrueInterest",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "borrower",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "receiver",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "borrowAmount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "repayAmount",
-          "type": "uint256"
-        }
-      ],
-      "name": "Borrow",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "underlying",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "shuttleId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        }
-      ],
-      "name": "ChargeVoid",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "recipient",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "assets",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "name": "Deposit",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "borrower",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "receiver",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "repayAmount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "cygLPAmount",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "usdAmount",
-          "type": "uint256"
-        }
-      ],
-      "name": "Liquidate",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "oldBorrowRewarder",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "address",
-          "name": "newBorrowRewarder",
-          "type": "address"
-        }
-      ],
-      "name": "NewCygnusBorrowRewarder",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "contract ICygnusHarvester",
-          "name": "oldHarvester",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "contract ICygnusHarvester",
-          "name": "newHarvester",
-          "type": "address"
-        }
-      ],
-      "name": "NewHarvester",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "baseRatePerYear",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "multiplierPerYear",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "kinkMultiplier_",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "kinkUtilizationRate_",
-          "type": "uint256"
-        }
-      ],
-      "name": "NewInterestRateParameters",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "oldReserveFactor",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "newReserveFactor",
-          "type": "uint256"
-        }
-      ],
-      "name": "NewReserveFactor",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "reinvestor",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "liquidity",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "timestamp",
-          "type": "uint256"
-        }
-      ],
-      "name": "RechargeVoid",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "balance",
-          "type": "uint256"
-        }
-      ],
-      "name": "SweepToken",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint160",
-          "name": "totalBalance",
-          "type": "uint160"
-        }
-      ],
-      "name": "Sync",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "sender",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "recipient",
-          "type": "address"
-        },
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "assets",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "name": "Withdraw",
-      "type": "event"
-    },
-    {
-      "inputs": [],
       "name": "DOMAIN_SEPARATOR",
       "outputs": [
         {
           "internalType": "bytes32",
           "name": "",
           "type": "bytes32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "PERMIT2",
-      "outputs": [
-        {
-          "internalType": "contract IAllowanceTransfer",
-          "name": "",
-          "type": "address"
         }
       ],
       "stateMutability": "view",
@@ -523,19 +91,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "baseRatePerSecond",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "address",
@@ -559,21 +114,14 @@
         }
       ],
       "name": "borrow",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "borrowIndex",
       "outputs": [
         {
-          "internalType": "uint80",
+          "internalType": "uint256",
           "name": "",
-          "type": "uint80"
+          "type": "uint256"
         }
       ],
-      "stateMutability": "view",
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -591,43 +139,10 @@
     },
     {
       "inputs": [],
-      "name": "chargeVoid",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
       "name": "collateral",
       "outputs": [
         {
           "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "cygnusBorrowRewarder",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "cygnusNebulaOracle",
-      "outputs": [
-        {
-          "internalType": "contract ICygnusNebulaOracle",
           "name": "",
           "type": "address"
         }
@@ -649,94 +164,8 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "assets",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "recipient",
-          "type": "address"
-        },
-        {
-          "components": [
-            {
-              "components": [
-                {
-                  "internalType": "address",
-                  "name": "token",
-                  "type": "address"
-                },
-                {
-                  "internalType": "uint160",
-                  "name": "amount",
-                  "type": "uint160"
-                },
-                {
-                  "internalType": "uint48",
-                  "name": "expiration",
-                  "type": "uint48"
-                },
-                {
-                  "internalType": "uint48",
-                  "name": "nonce",
-                  "type": "uint48"
-                }
-              ],
-              "internalType": "struct IAllowanceTransfer.PermitDetails",
-              "name": "details",
-              "type": "tuple"
-            },
-            {
-              "internalType": "address",
-              "name": "spender",
-              "type": "address"
-            },
-            {
-              "internalType": "uint256",
-              "name": "sigDeadline",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct IAllowanceTransfer.PermitSingle",
-          "name": "_permit",
-          "type": "tuple"
-        },
-        {
-          "internalType": "bytes",
-          "name": "_signature",
-          "type": "bytes"
-        }
-      ],
-      "name": "deposit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "exchangeRate",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "exchangeRateStored",
       "outputs": [
         {
           "internalType": "uint256",
@@ -772,108 +201,28 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "getRewards",
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lender",
+          "type": "address"
+        }
+      ],
+      "name": "getLenderPosition",
       "outputs": [
         {
-          "internalType": "address[]",
-          "name": "tokens",
-          "type": "address[]"
+          "internalType": "uint256",
+          "name": "cygUsdBalance",
+          "type": "uint256"
         },
         {
-          "internalType": "uint256[]",
-          "name": "amounts",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "hangar18",
-      "outputs": [
-        {
-          "internalType": "contract IHangar18",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "harvester",
-      "outputs": [
-        {
-          "internalType": "contract ICygnusHarvester",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "jumpMultiplierPerSecond",
-      "outputs": [
-        {
           "internalType": "uint256",
-          "name": "",
+          "name": "rate",
           "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "kinkMultiplier",
-      "outputs": [
+        },
         {
           "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "kinkUtilizationRate",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "lastAccrualTimestamp",
-      "outputs": [
-        {
-          "internalType": "uint32",
-          "name": "",
-          "type": "uint32"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "lastReinvest",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
+          "name": "positionInUsd",
           "type": "uint256"
         }
       ],
@@ -912,19 +261,6 @@
         }
       ],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "multiplierPerSecond",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -1003,167 +339,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "shares",
-          "type": "uint256"
-        },
-        {
-          "internalType": "address",
-          "name": "recipient",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        }
-      ],
-      "name": "redeem",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "assets",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "liquidity",
-          "type": "uint256"
-        }
-      ],
-      "name": "reinvestRewards_y7b",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "reserveFactor",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "rewardToken",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "rewarder",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "newBorrowRewarder",
-          "type": "address"
-        }
-      ],
-      "name": "setCygnusBorrowRewarder",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "contract ICygnusHarvester",
-          "name": "_harvester",
-          "type": "address"
-        }
-      ],
-      "name": "setHarvester",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "baseRatePerYear",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "multiplierPerYear",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "kinkMultiplier_",
-          "type": "uint256"
-        },
-        {
-          "internalType": "uint256",
-          "name": "kinkUtilizationRate_",
-          "type": "uint256"
-        }
-      ],
-      "name": "setInterestRateModel",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "newReserveFactor",
-          "type": "uint256"
-        }
-      ],
-      "name": "setReserveFactor",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "shuttleId",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "supplyRate",
       "outputs": [
@@ -1174,19 +349,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "sweepToken",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {
@@ -1246,19 +408,6 @@
         }
       ],
       "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "borrower",
-          "type": "address"
-        }
-      ],
-      "name": "trackBorrower",
-      "outputs": [],
-      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

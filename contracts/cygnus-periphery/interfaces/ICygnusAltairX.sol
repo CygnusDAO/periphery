@@ -144,6 +144,11 @@ interface ICygnusAltairX {
     function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
 
     /**
+     *  @return UNISWAP_V3_ROUTER The address of UniswapV3's swap router
+     */
+    function UNISWAP_V3_ROUTER() external pure returns (address);
+
+    /**
      *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
      */
     function hangar18() external view returns (IHangar18);

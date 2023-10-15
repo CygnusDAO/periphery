@@ -40,6 +40,8 @@ interface ICygnusAltair {
      *  @custom:member OxPROJECT Uses 0xProjects swap API
      *  @custom:member OPEN_OCEAN_V1 Uses OpenOcean  with the legacy `swap` method
      *  @custom:member OPEN_OCEAN_V2 Uses OpenOcean with `uniswapV3SwapTo` method
+     *  @custom:member UNISWAP_V3_EMERGENCY Uses Uniswapv3 to perform the swap, should only be used under emergency scenarios
+     *                 in case that aggregators stop working all of a sudden and users cannot deleverage.
      */
     enum DexAggregator {
         PARASWAP,
@@ -47,7 +49,8 @@ interface ICygnusAltair {
         ONE_INCH_V2,
         OxPROJECT,
         OPEN_OCEAN_LEGACY,
-        OPEN_OCEAN_V2
+        OPEN_OCEAN_V2,
+        UNISWAP_V3_EMERGENCY
     }
 
     /**
@@ -175,9 +178,19 @@ interface ICygnusAltair {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @notice Array of all initialized extensions
+     *  @return name The human readable name this router is for
      */
-    function allExtensions(uint256 index) external view returns (address);
+    function name() external view returns (string memory);
+
+    /**
+     *  @return version The version of the router
+     */
+    function version() external view returns (string memory);
+
+    /**
+     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
+     */
+    function hangar18() external view returns (IHangar18);
 
     /**
      *  @return PERMIT Uniswap's Permit2 router
@@ -205,19 +218,9 @@ interface ICygnusAltair {
     function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
 
     /**
-     *  @return name The human readable name this router is for
+     *  @return UNISWAP_V3_ROUTER The address of UniswapV3's swap router
      */
-    function name() external view returns (string memory);
-
-    /**
-     *  @return version The version of the router
-     */
-    function version() external view returns (string memory);
-
-    /**
-     *  @return hangar18 The address of the Cygnus factory contract V1 - Used to get the nativeToken and USD address
-     */
-    function hangar18() external view returns (IHangar18);
+    function UNISWAP_V3_ROUTER() external pure returns (address);
 
     /**
      *  @return usd The address of USD on this chain, used for the leverage/deleverage swaps
@@ -228,6 +231,11 @@ interface ICygnusAltair {
      *  @return nativeToken The address of the native token on this chain (ie. WETH)
      */
     function nativeToken() external view returns (IWrappedNative);
+
+    /**
+     *  @notice Array of all initialized extensions
+     */
+    function allExtensions(uint256 index) external view returns (address);
 
     /**
      *  @notice Returns the altair extension for a borrowable or collateral contract
