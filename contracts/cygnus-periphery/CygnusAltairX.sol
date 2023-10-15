@@ -392,8 +392,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
                 // Get the liquidity for this pool
                 uint256 liquidity = IUniswapV3Pool(pool).liquidity();
 
-                // If amountOut is higher than the last maxAmount then set the poolFee and
-                // maxAmount as the highest else loop again
+                // If amountOut is higher than the last maxAmount then cache the pool fee and maxamount
                 if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
             }
         }
