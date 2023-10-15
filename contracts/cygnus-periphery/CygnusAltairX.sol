@@ -61,7 +61,6 @@ import {IOpenOceanExchange, IOpenOceanCaller} from "./interfaces/aggregators/IOp
 import {IUniswapV3Router} from "./interfaces/aggregators/IUniswapV3Router.sol";
 import {IUniswapV3Factory} from "./interfaces/aggregators/IUniswapV3Factory.sol";
 import {IUniswapV3Pool} from "./interfaces/aggregators/IUniswapV3Pool.sol";
-import {IQuoterV2} from "./interfaces/aggregators/IUniswapV3Quoter.sol";
 
 /**
  *  @title  CygnusAltairX Extension for the main periphery contract `CygnusAltair`
@@ -105,11 +104,6 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @notice Empty bytes to pass to contracts if needed
      */
     bytes internal constant LOCAL_BYTES = new bytes(0);
-
-    /**
-     *  @notice The address of UniswapV3's QuoterV2 contract on this chain
-     */
-    address internal constant UNISWAP_V3_QUOTER = 0x61fFE014bA17989E743c5F6cB21bF9697530B21e;
 
     /**
      *  @notice The address of UniswapV3's Factory contract on this chain
@@ -373,21 +367,22 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @notice Calculates the pool with the best fee to swap `tokenIn` to `tokenOut` given `amountIn`
      *  @param tokenIn The address of the token we are swapping
      *  @param tokenOut The address of the token we are receiving
-     *  @param amountIn The amount of `tokenIn` we are swapping
      */
-    function _optimalPoolFee(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint24 poolFee) {
+    function _optimalPoolFee(address tokenIn, address tokenOut) internal view returns (uint24 poolFee) {
         /// Get the uniswapv3 factory on this chain
         IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
-
-        // Get max amount
-        uint256 maxAmount = 0;
 
         // Possible fees (100, 500, 3000, 10000)
         uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
 
-        // Get the pool given each fee. If it exists, query the liquidity to filter out dead pools. If there's
-        // a pool for this `fee` and has some amount of liquidity then query the amount we would receiving
-        // by swapping `tokenIn` to `tokenOut` on this pool and use the `amountOut` to the previously maxed amount.
+        // Start at 0
+        uint256 maxLiquidity = 0;
+
+        // Get the pool given each fee. If it exists, query the current liquidity of the pool to check
+        // which pool has the highest liquidity and hence which pool will most likely offer the best amountOut.
+        // In reality this doesn't always result in the highest amountOut, but it will at least filter out dead
+        // pools and it avoids us from having to use the UnsiwapV3 Quoter, which should not be used on-chain:
+        // (https://docs.uniswap.org/contracts/v3/reference/periphery/lens/QuoterV2
         for (uint256 i = 0; i < fees.length; i++) {
             // Get the pool given `fee`
             address pool = uniswapFactory.getPool(tokenIn, tokenOut, fees[i]);
@@ -397,23 +392,9 @@ abstract contract CygnusAltairX is ICygnusAltairX {
                 // Get the liquidity for this pool
                 uint256 liquidity = IUniswapV3Pool(pool).liquidity();
 
-                // Use a low floor value as pools with low decimal tokens have lower liquidity value.
-                if (liquidity > 10e6) {
-                    // Get the amount we would receive by swapping the token with this pool
-                    (uint256 amountOut, , , ) = IQuoterV2(UNISWAP_V3_QUOTER).quoteExactInputSingle(
-                        IQuoterV2.QuoteExactInputSingleParams({
-                            tokenIn: tokenIn,
-                            tokenOut: tokenOut,
-                            amountIn: amountIn,
-                            fee: fees[i],
-                            sqrtPriceLimitX96: 0
-                        })
-                    );
-
-                    // If amountOut is higher than the last maxAmount then set the poolFee and
-                    // maxAmount as the highest else loop again
-                    if (amountOut > maxAmount) (poolFee, maxAmount) = (fees[i], amountOut);
-                }
+                // If amountOut is higher than the last maxAmount then set the poolFee and
+                // maxAmount as the highest else loop again
+                if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
             }
         }
     }
@@ -589,7 +570,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         /// Check allowance and approve UniswapV3 Router in token in if necessary
         _approveToken(tokenIn, UNISWAP_V3_ROUTER, amountIn);
 
-        uint24 optimalPoolFee = _optimalPoolFee(tokenIn, tokenOut, amountIn);
+        uint24 optimalPoolFee = _optimalPoolFee(tokenIn, tokenOut);
 
         // Fee possibilities: 500, 3000, 10000
         amountOut = IUniswapV3Router(UNISWAP_V3_ROUTER).exactInputSingle(
