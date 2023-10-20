@@ -53,8 +53,10 @@ import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {ICygnusTerminal} from "./interfaces/core/ICygnusTerminal.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
-import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol"; // Permit2
-import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol"; // Permit2
+
+// Permit2
+import {IAllowanceTransfer} from "./interfaces/core/IAllowanceTransfer.sol";
+import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol";
 
 /**
  *  @title  CygnusAltair Periphery contract to interact with Cygnus Core contracts
@@ -69,19 +71,22 @@ import {ISignatureTransfer} from "./interfaces/core/ISignatureTransfer.sol"; // 
  *          Deleverage = Redeem collateral (Liquidity Tokens) and sell the assets for USDC to repay the loan
  *                       or just to convert all your liquidity to USDC in 1 step.
  *
- *          As such, using a dex aggregator is crucial to make our system work. This router is integrated with
+ *          As such, using a dex aggregator improves capital efficiency during swaps. This router is integrated with
  *          the following aggregators to make sure that slippage is minimal between the borrowed USDC and the
- *          minted LP:
- *            1. 0xProject
- *            2. 1Inch (Legacy and Optimized Routers)
- *            3. Paraswap
- *            4. OpenOcean
- *            5. UniswapV3 (Emergency Only!!!) (*)
+ *          minted LP and when converting LP back to USDC. When using the functions you should pass the ID of each.
+ *            - Paraswap                       (0)
+ *            - OneInchV5 Legacy Swap          (1)
+ *            - OneInchV5 Optimized Swap       (2)
+ *            - 0xProject Swap API             (3)
+ *            - OpenOcean Legacy Swap          (4)
+ *            - OpenOcean Optimized Swap       (5)
+ *            - OKX Aggregation Router         (6)
+ *            - UniswapV3 (*)                  (7)
  *
  *          (*) In the unlikely case where ALL aggregators start failing at the same time (APIs are down, etc.),
- *          users can perform emergency deleverage or emergency liquidations with UniswapV3's router. The end
- *          result would be suffering higher slippage and liquidators receiving less liquidation profit, but
- *          this way users are always guaranteed to be able to adjust their positions.
+ *          users can perform EMERGENCY deleverage or liquidations with UniswapV3's router. The end result would 
+ *          likely be suffering higher slippage and liquidators receiving less liquidation profit, but this way users 
+ *          are always guaranteed to be able to adjust their positions.
  *
  *          During the leverage functionality the router borrows USD from the borrowable arm contract, and
  *          then converts it to LP Tokens. Since each liquidity token requires different logic to "mint".,
@@ -150,7 +155,7 @@ contract CygnusAltair is ICygnusAltair {
     /**
      *  @inheritdoc ICygnusAltair
      */
-    string public override name = "Cygnus: Altair Router";
+    string public constant override name = "Cygnus: Altair Router";
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -183,6 +188,11 @@ contract CygnusAltair is ICygnusAltair {
      *  @inheritdoc ICygnusAltair
      */
     address public constant override OPEN_OCEAN_EXCHANGE_PROXY = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
+
+    /**
+     *  @inheritdoc ICygnusAltair
+     */
+    address public constant override OKX_AGGREGATION_ROUTER = 0xA748D6573acA135aF68F2635BE60CB80278bd855;
 
     /**
      *  @inheritdoc ICygnusAltair
@@ -403,11 +413,8 @@ contract CygnusAltair is ICygnusAltair {
      *  @param amountMax The max amount that can be repaid
      *  @param borrower The address of the account that is repaying the borrowed amount
      */
-    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal returns (uint256 amount) {
-        // Accrue interest first
-        ICygnusBorrow(borrowable).accrueInterest();
-
-        // Get latest borrow balance of borrower (accrues interest)
+    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal view returns (uint256 amount) {
+        // Get latest borrow balance of borrower with borrow indices
         (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
 
         // Avoid repaying more than borrowedAmount
@@ -545,174 +552,18 @@ contract CygnusAltair is ICygnusAltair {
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
-    //  POSITIONS ────────────────────────────────────
-
-    /**
-     *  @notice Returns the borrower`s overall positions (borrows, position in usd and balance) across the whole protocol
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestBorrowerAll(address user) external returns (uint256 principal, uint256 borrowBalance, uint256 positionUsd) {
-        // Total lending pools in Cygnus
-        uint256 totalShuttles = hangar18.shuttlesDeployed();
-
-        // Loop through each pool and update borrower's position
-        for (uint256 i = 0; i < totalShuttles; i++) {
-            // Get borrowale and collateral for shuttle `i`
-            (, , address borrowable, address collateral, ) = hangar18.allShuttles(i);
-
-            // Accrue interest in borrowable
-            ICygnusBorrow(borrowable).sync();
-
-            // Get collateral position
-            (, uint256 _principal, uint256 _borrowBalance, , , uint256 _positionUsd, , ) = ICygnusCollateral(collateral)
-                .getBorrowerPosition(user);
-
-            // Increase total principal
-            principal += _principal;
-
-            // Increase total borrowed balance
-            borrowBalance += _borrowBalance;
-
-            // Increase the borrower`s position in USD
-            positionUsd += _positionUsd;
-        }
-    }
-
-    /**
-     *  @notice Returns the lenders`s overall positions (cygUsd and position in USD) across the whole protocol
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestLenderAll(address user) external returns (uint256 cygUsdBalance, uint256 positionUsd) {
-        // Total lending pools in Cygnus
-        uint256 totalShuttles = hangar18.shuttlesDeployed();
-
-        // Loop through each pool and update lender's position
-        for (uint256 i = 0; i < totalShuttles; i++) {
-            // Get borrowable contract for shuttle `i`
-            (, , address borrowable, , ) = hangar18.allShuttles(i);
-
-            // Accrue interest
-            ICygnusBorrow(borrowable).sync();
-
-            // Get lender position
-            (uint256 _cygUsdBalance, , uint256 _positionUsd) = ICygnusBorrow(borrowable).getLenderPosition(user);
-
-            // Increase shares balance
-            cygUsdBalance += _cygUsdBalance;
-
-            // Increase assets balance
-            positionUsd += _positionUsd;
-        }
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestLenderPosition(
-        ICygnusBorrow borrowable,
-        address lender
-    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionUsd) {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Return latest position
-        return borrowable.getLenderPosition(lender);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestBorrowerPosition(
-        ICygnusBorrow borrowable,
-        address borrower
-    )
-        external
-        returns (
-            uint256 cygLPBalance,
-            uint256 principal,
-            uint256 borrowBalance,
-            uint256 price,
-            uint256 rate,
-            uint256 positionUsd,
-            uint256 positionLp,
-            uint256 health
-        )
-    {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Get collateral contract
-        address collateral = borrowable.collateral();
-
-        // Return latest info
-        return _latestBorrowerInfo(collateral, borrower);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall) {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Get collateral contract
-        address collateral = borrowable.collateral();
-
-        // Liquidity info
-        (liquidity, shortfall) = ICygnusCollateral(collateral).getAccountLiquidity(borrower);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestShuttleInfo(
-        ICygnusBorrow borrowable
-    )
-        external
-        returns (uint256 supplyApr, uint256 borrowApr, uint256 util, uint256 totalBorrows, uint256 totalBalance, uint256 exchangeRate)
-    {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // For APRs
-        uint256 secondsPerYear = 24 * 60 * 60 * 365;
-
-        // The APR for lenders
-        supplyApr = borrowable.supplyRate() * secondsPerYear;
-
-        // The interest rate for borrowers
-        borrowApr = borrowable.borrowRate() * secondsPerYear;
-
-        // Utilization rate
-        util = borrowable.utilizationRate();
-
-        // Total borrows stored in the contract
-        totalBorrows = borrowable.totalBorrows();
-
-        // Available cash
-        totalBalance = borrowable.totalBalance();
-
-        // The latest exchange rate
-        exchangeRate = borrowable.exchangeRate();
-    }
-
     // Start periphery functions:
-    //   1. Borrow
-    //   2. Repay (+ permit2)
-    //   3. Liquidate (+ permit2)
-    //   4. Flash Liquidate
-    //   5. Leverage
-    //   6. Deleverage
+    //   1. Borrow - Users can borrow passing a standard permit to approve borrow allowance + borrow in 1 tx
+    //   2. Repay - (standard permit + permit2 allowance + permit2 signature)
+    //   3. Liquidate - (standard permit + permit2 allowance + permit2 signature)
+    //   4. Flash Liquidate - There's no need to approve anything as we are just selling collateral to the market
+    //   5. Leverage - Users can leverage passing a standard permit to approve borrow allowance + leverage in 1 tx
+    //   6. Deleverage - Users can deleverage passing a standard permit to approve CygLP allowance + deleverage in 1 tx
 
     //  1. BORROW ────────────────────────────────────
 
     /**
+     *  @notice Borrows USDC and sends it to `recipient`
      *  @inheritdoc ICygnusAltair
      */
     function borrow(
@@ -732,6 +583,7 @@ contract CygnusAltair is ICygnusAltair {
     //  2. REPAY ─────────────────────────────────────
 
     /**
+     *  @notice Transfers USDC from sender to the borrowable and repays the debt for `borrower`
      *  @inheritdoc ICygnusAltair
      */
     function repay(
@@ -828,6 +680,8 @@ contract CygnusAltair is ICygnusAltair {
     //  3. LIQUIDATE ─────────────────────────────────
 
     /**
+     *  @notice Transfers USDC from sender to the borrowable, liquidating `borrower` and receiving the equivalent
+     *          of the repaid amount + the liquidation incentinve in CygLP.
      *  @inheritdoc ICygnusAltair
      */
     function liquidate(
@@ -927,6 +781,7 @@ contract CygnusAltair is ICygnusAltair {
     //  4. FLASH LIQUIDATE ───────────────────────────
 
     /**
+     *  @notice Sells the LP collateral to the market, repays debt and sends liquidator the liq. incentive in USDC
      *  @inheritdoc ICygnusAltair
      */
     function flashLiquidate(
@@ -964,6 +819,7 @@ contract CygnusAltair is ICygnusAltair {
     //  5. LEVERAGE ──────────────────────────────────
 
     /**
+     *  @notice Converts all USDC to LP's assets and mints LP token
      *  @inheritdoc ICygnusAltair
      */
     function leverage(
@@ -990,6 +846,7 @@ contract CygnusAltair is ICygnusAltair {
     //  6. DELEVERAGE ────────────────────────────────
 
     /**
+     *  @notice Burns the LP token and converts all LP's assets to USDC
      *  @inheritdoc ICygnusAltair
      */
     function deleverage(
@@ -1031,43 +888,55 @@ contract CygnusAltair is ICygnusAltair {
      *  @inheritdoc ICygnusAltair
      *  @custom:security only-admin
      */
-    function setAltairExtension(uint256 shuttleId, address extension) external override {
+    function setAltairExtension(uint256[] calldata shuttleIds, address extension) external override {
         // Get latest admin
         address admin = hangar18.admin();
 
         /// @custom:error MsgSenderNotAdmin
         if (msg.sender != admin) revert CygnusAltair__MsgSenderNotAdmin();
 
-        // Get the shuttle for the shuttle ID
-        (bool launched, , address borrowable, address collateral, ) = hangar18.allShuttles(shuttleId);
+        // Total lending pools
+        uint256 length = shuttleIds.length;
 
-        /// @custom:error ShuttleDoesNotExist
-        if (!launched) revert CygnusAltair__ShuttleDoesNotExist();
+        // Set extension for shuttleId[i]
+        for (uint256 i = 0; i < length; i++) {
+            // Get the shuttle for the shuttle ID
+            (bool launched, , address borrowable, address collateral, ) = hangar18.allShuttles(shuttleIds[i]);
 
-        // Add to array - Allow admin to update extension for the lending pool
-        if (!isExtension[extension]) {
-            // Add to array
-            allExtensions.push(extension);
+            /// @custom:error ShuttleDoesNotExist
+            if (!launched) revert CygnusAltair__ShuttleDoesNotExist();
 
-            // Mark as true
-            isExtension[extension] = true;
+            // Add to array - Allow admin to update extension for the lending pool
+            if (!isExtension[extension]) {
+                // Add to array
+                allExtensions.push(extension);
+
+                // Mark as true
+                isExtension[extension] = true;
+            }
+
+            // For leveraging USD
+            altairExtensions[borrowable] = extension;
+
+            // For deleveraging the LP
+            altairExtensions[collateral] = extension;
+
+            // For getting the assets for a a given amount of shares:
+            //
+            // asset received = shares_burnt * asset_balance / vault_token_supply
+            //
+            // Calling `getAssetsForShares(underlying, amount)` returns two arrays: `tokens` and `amounts`. The
+            // extensions handle this logic since it differs per underlying Liquidity Token. For example, returning
+            // assets by burning 1 LP in UniV2, or 1 BPT in a Balancer Weighted Pool, etc. Helpful when deleveraging
+            // liquidity tokens into USDC.
+            address lpTokenAddress = ICygnusCollateral(collateral).underlying();
+
+            // Store LP => Extension
+            altairExtensions[lpTokenAddress] = extension;
+
+            /// @custom:event NewExtension
+            emit NewExtension(shuttleIds[i], borrowable, collateral, lpTokenAddress, extension);
         }
-
-        // For leveraging USD
-        altairExtensions[borrowable] = extension;
-
-        // For deleveraging the LP
-        altairExtensions[collateral] = extension;
-
-        // For getting the assets for a a given amount of shares:
-        //
-        // asset received = shares_burnt * asset_balance / vault_token_supply
-        //
-        // Calling `getAssetsForShares(underlying, amount)` returns two arrays: `tokens` and `amounts`. The
-        // extensions handle this logic since it differs per underlying Liquidity Token. For example, returning
-        // assets by burning 1 LP in UniV2, or 1 BPT in a Balancer Weighted Pool, etc. Helpful when deleveraging
-        // liquidity tokens into USDC.
-        altairExtensions[ICygnusCollateral(collateral).underlying()] = extension;
     }
 
     /**

@@ -25,6 +25,21 @@
     },
     {
       "inputs": [],
+      "name": "CygnusAltair__InvalidAggregator",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CygnusAltair__InvalidPool",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "CygnusAltair__MsgSenderNotAdmin",
+      "type": "error"
+    },
+    {
+      "inputs": [],
       "name": "CygnusAltair__MsgSenderNotBorrowable",
       "type": "error"
     },
@@ -57,6 +72,19 @@
       "inputs": [],
       "name": "CygnusAltair__ParaswapTransactionFailed",
       "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OKX_AGGREGATION_ROUTER",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
     },
     {
       "inputs": [],
@@ -210,19 +238,6 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "_name",
-          "type": "string"
-        }
-      ],
-      "name": "setName",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
       "inputs": [],
       "name": "sweepNative",
       "outputs": [],
@@ -232,12 +247,17 @@
     {
       "inputs": [
         {
+          "internalType": "contract IERC20[]",
+          "name": "tokens",
+          "type": "address[]"
+        },
+        {
           "internalType": "address",
-          "name": "token",
+          "name": "to",
           "type": "address"
         }
       ],
-      "name": "sweepToken",
+      "name": "sweepTokens",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -250,6 +270,19 @@
           "internalType": "address",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
         }
       ],
       "stateMutability": "view",

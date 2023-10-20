@@ -1,0 +1,24 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IOkxProxy",
+  "sourceName": "contracts/cygnus-periphery/interfaces/aggregators/IOkxAggregator.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "tokenApprove",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

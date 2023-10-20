@@ -47,6 +47,13 @@ interface ICygnusAltairX {
     error CygnusAltair__MsgSenderNotRouter();
 
     /**
+     *  @dev Reverts when the msg sender is not the cygnus factory admin
+     *
+     *  @custom:error MsgSenderNotAdmin
+     */
+    error CygnusAltair__MsgSenderNotAdmin();
+
+    /**
      *  @dev Reverts when the msg sender is not the borrow contract
      *
      *  @custom:error MsgSenderNotBorrowable
@@ -109,6 +116,17 @@ interface ICygnusAltairX {
      */
     error CygnusAltair__OnlyDelegateCall();
 
+    /**
+     *  @dev Reverts when no pool is found for swapping tokens through the UniswapV3 router
+     *
+     *  @custom:error InvalidPoolFee
+     */
+    error CygnusAltair__InvalidPool();
+
+    /**
+     *
+     */
+    error CygnusAltair__InvalidAggregator();
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -117,6 +135,11 @@ interface ICygnusAltairX {
      *  @return name The human readable name this router is for
      */
     function name() external view returns (string memory);
+
+    /**
+     *  @return version The version of the Extension contract
+     */
+    function version() external view returns (string memory);
 
     /**
      *  @return PERMIT Uniswap's Permit2 router
@@ -142,6 +165,11 @@ interface ICygnusAltairX {
      *  @return OPEN_OCEAN_EXCHANGE_PROXY The address of OpenOcean's exchange router
      */
     function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
+
+    /**
+     *  @return OKX_AGGREGATION_ROUTER The address of OKX's Aggregation Router on this chain
+     */
+    function OKX_AGGREGATION_ROUTER() external pure returns (address);
 
     /**
      *  @return UNISWAP_V3_ROUTER The address of UniswapV3's swap router
@@ -183,21 +211,15 @@ interface ICygnusAltairX {
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @dev Sets or updates the name of the Extension
-     *  @param _name The suffix for the new name of the extension
+     *  @notice Sweeps tokens that were sent here by mistake
+     *  @param tokens Array of tokens to sweep
+     *  @param to The receiver of the sweep
      *  @custom:security only-admin
      */
-    function setName(string memory _name) external;
+    function sweepTokens(IERC20[] memory tokens, address to) external;
 
     /**
-     *  @dev Sweeps a token to hangar18 admin
-     *  @param token The address of the token
-     *  @custom:security only-admin
-     */
-    function sweepToken(address token) external;
-
-    /**
-     *  @dev Sweeps the native token (ETH, etc.)
+     *  @notice Sweeps native
      *  @custom:security only-admin
      */
     function sweepNative() external;

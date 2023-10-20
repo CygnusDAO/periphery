@@ -40,6 +40,7 @@ interface ICygnusAltair {
      *  @custom:member OxPROJECT Uses 0xProjects swap API
      *  @custom:member OPEN_OCEAN_V1 Uses OpenOcean  with the legacy `swap` method
      *  @custom:member OPEN_OCEAN_V2 Uses OpenOcean with `uniswapV3SwapTo` method
+     *  @custom:member OKX Uses OKX aggregation router
      *  @custom:member UNISWAP_V3_EMERGENCY Uses Uniswapv3 to perform the swap, should only be used under emergency scenarios
      *                 in case that aggregators stop working all of a sudden and users cannot deleverage.
      */
@@ -50,6 +51,7 @@ interface ICygnusAltair {
         OxPROJECT,
         OPEN_OCEAN_LEGACY,
         OPEN_OCEAN_V2,
+        OKX,
         UNISWAP_V3_EMERGENCY
     }
 
@@ -174,6 +176,23 @@ interface ICygnusAltair {
     error CygnusAltair__ShuttleDoesNotExist();
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            2. CUSTOM EVENTS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Logs when admin sets a new extension
+     *
+     *  @param shuttleId Indexed shuttle ID
+     *  @param borrowable Address of the borrowable
+     *  @param collateral Address of the collateral
+     *  @param lpTokenAddres Address of the lp token
+     *  @param extension Address of the new extension
+     *
+     *  @custom:event NewExtension
+     */
+    event NewExtension(uint256 indexed shuttleId, address borrowable, address collateral, address lpTokenAddres, address extension);
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             3. CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
@@ -216,6 +235,11 @@ interface ICygnusAltair {
      *  @return OPEN_OCEAN_EXCHANGE_PROXY The address of OpenOcean's exchange router
      */
     function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
+
+    /**
+     *  @return OKX_AGGREGATION_ROUTER The address of OKX's Aggregation Router on this chain
+     */
+    function OKX_AGGREGATION_ROUTER() external pure returns (address);
 
     /**
      *  @return UNISWAP_V3_ROUTER The address of UniswapV3's swap router
@@ -278,91 +302,6 @@ interface ICygnusAltair {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
             4. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
-
-    /**
-     *  @notice Gets the account's total position value in USD (LP Tokens owned multiplied by LP price). It uses the oracle to get the
-     *          price of the LP Token and uses the current exchange rate.
-     *  @param borrowable The address of the borrowable contract
-     *  @param borrower The address of the borrower
-     *  @return cygLPBalance The user's balance of collateral (CygLP)
-     *  @return principal The original loaned USDC amount (without interest)
-     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
-     *  @return price The current liquidity token price
-     *  @return rate The current exchange rate between CygLP and LP Token
-     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
-     *  @return positionLp The borrower`s position in LP Tokens
-     *  @return health The user's current loan health (once it reaches 100% the user becomes liquidatable)
-     */
-    function latestBorrowerPosition(
-        ICygnusBorrow borrowable,
-        address borrower
-    )
-        external
-        returns (
-            uint256 cygLPBalance,
-            uint256 principal,
-            uint256 borrowBalance,
-            uint256 price,
-            uint256 rate,
-            uint256 positionUsd,
-            uint256 positionLp,
-            uint256 health
-        );
-
-    /**
-     *  @notice Get the latest account liquidity for a user
-     *  @param borrowable Address of the Borrow contract
-     *  @param borrower Address of the borrower
-     *  @return liquidity The account's liquidity (if any)
-     *  @return shortfall The account's shortfall (if any)
-     */
-    function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall);
-
-    /**
-     *  @notice Get the lender`s full position
-     *  @param borrowable The address of the borrowable contract
-     *  @param lender The address of the lender
-     *  @return cygUsdBalance The `lender's` balance of CygUSD
-     *  @return rate The currente exchange rate
-     *  @return positionUsd The lender's position in USD
-     */
-    function latestLenderPosition(
-        ICygnusBorrow borrowable,
-        address lender
-    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionUsd);
-
-    /**
-     *  @notice Get the lender's TVL in Cygnus
-     *  @param lender The address of the lender
-     *  @return cygUsdBalance The `lender's` balance of CygUSD
-     *  @return positionUsd The lender's position in USD
-     */
-    function latestLenderAll(address lender) external returns (uint256 cygUsdBalance, uint256 positionUsd);
-
-    /**
-     *  @notice Get the borrower's TVL in Cygnus
-     *  @param borrower The address of the borrower
-     *  @return principal The original loaned USDC amount (without interest)
-     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
-     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
-     */
-    function latestBorrowerAll(address borrower) external returns (uint256 principal, uint256 borrowBalance, uint256 positionUsd);
-
-    /**
-     *  @notice Get the whole lending pool info with latest interest rate accruals
-     *  @param borrowable The address of the borrowable contract
-     *  @return supplyApr The latest annualized return for lenders
-     *  @return borrowApr The latest interest rate for borrowers
-     *  @return util The latest utilization rate
-     *  @return totalBorrows The latest total borrows
-     *  @return totalBalance The latest available cash
-     *  @return exchangeRate The latest exchange rate between USD and CygUSD
-     */
-    function latestShuttleInfo(
-        ICygnusBorrow borrowable
-    )
-        external
-        returns (uint256 supplyApr, uint256 borrowApr, uint256 util, uint256 totalBorrows, uint256 totalBalance, uint256 exchangeRate);
 
     /**
      *  @notice Main function used in Cygnus to liquidate borrows
@@ -557,11 +496,11 @@ interface ICygnusAltair {
 
     /**
      *  @notice Initializes an extnesion of the router and maps it to a borrowable/collateral/lp token
-     *  @param shuttleId the ID of the lending pool
+     *  @param shuttleIds Array of shuttle IDs for the extension
      *  @param extension The address of the extension
      *  @custom:security only-admin
      */
-    function setAltairExtension(uint256 shuttleId, address extension) external;
+    function setAltairExtension(uint256[] calldata shuttleIds, address extension) external;
 
     /**
      *  @notice Sweeps tokens that were sent here by mistake

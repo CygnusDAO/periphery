@@ -59,7 +59,7 @@ import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
  *  @notice There are 2 ways to swap tokens: `swapTokensOptimized` and `swapTokensLegacy`. Legacy methods require
  *          the actual amount of tokenIn being swapped as we need to pass this amount to the aggregator router in
  *          the function call. With optimized routers we perform a low level call so the amount of tokenIn being
- *          swapped is already encoded in the call. We did this only for leverage functions as when we deleverage
+ *          swapped is already encoded in the call. We do this only for leverage functions as when we deleverage
  *          we already know the amount of tokenIn we need to swap as we have done an LP burn prior to this.
  */
 contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
@@ -86,7 +86,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
      *          of deployers and the wrapped native token (WETH, WFTM, etc.)
      *  @param _hangar18 The address of the Cygnus Factory contract on this chain
      */
-    constructor(IHangar18 _hangar18, string memory name) CygnusAltairX(_hangar18, name) {}
+    constructor(IHangar18 _hangar18) CygnusAltairX(_hangar18) {}
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           5. CONSTANT FUNCTIONS
@@ -95,7 +95,8 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ─────────────────────────────────────────────── Private ───────────────────────────────────────────────  */
 
     /**
-     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function and thus need to calculate
+     *          token weights
      *  @param dexAggregator The id of the dex aggregator to use
      *  @return Whether or not the dex aggregator is a legacy aggregator
      */
@@ -344,10 +345,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         }
 
         // ─────────────────── 2. Not USD, swap both to USD
-        // Swap token0 to USD
+        // Swap token0 to USD with received amount of token0 from the LP burn
         amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
 
-        // Swap token1 to USD
+        // Swap token1 to USD with received amount of token1 from the LP burn
         amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
 
         // USD balance
@@ -398,7 +399,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Convert amountA and amountB to USD
         _convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
 
-        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
+        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate (paraswap..)
         usdAmount = _checkBalance(usd);
 
         /// @custom:error InsufficientLiquidateUsd Avoid if received is less than liquidated
@@ -617,10 +618,16 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Check for dust of token1
         uint256 leftAmount1 = _checkBalance(token1);
 
+        // Check for dust of USDC
+        uint256 leftAmountUsd = _checkBalance(usd);
+
         // Send leftover token0 to user
         if (leftAmount0 > 0) token0.safeTransfer(recipient, leftAmount0);
 
         // Send leftover token1 to user
         if (leftAmount1 > 0) token1.safeTransfer(recipient, leftAmount1);
+
+        // Send leftover usdc to user
+        if (leftAmountUsd > 0) usd.safeTransfer(recipient, leftAmountUsd);
     }
 }
