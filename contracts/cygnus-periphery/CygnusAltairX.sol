@@ -327,8 +327,11 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @param amountMax The max amount that can be repaid
      *  @param borrower The address of the account that is repaying the borrowed amount
      */
-    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal view returns (uint256 amount) {
-        // Get latest borrow balance of borrower with borrow indices
+    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal returns (uint256 amount) {
+        // Accrue interest if necessary
+        ICygnusBorrow(borrowable).accrueInterest();
+
+        // Get latest borrow balance of borrower
         (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
 
         // Avoid repaying more than borrowedAmount
