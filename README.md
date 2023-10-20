@@ -8,7 +8,8 @@
 | Integrated with 0xProject's Swap API                           | (30/06/2023) |
 | Added Fallback function for each extension                     | (06/07/2023) |
 | Integrated with OpenOcean's Aggregator API                     | (02/08/2023) |
-| Added emergency UniswapV3 deleverage/leverage/liquidations (*) | (10/15/2023) |
+| Added emergency UniswapV3 deleverage/leverage/liquidations (*) | (15/10/2023) |
+| Integrated OKX Dex Aggregator                                  | (20/10/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
@@ -195,8 +196,42 @@ function _swapTokensOpenOcean(bytes memory swapdata, address srcToken, uint256 s
     }
 }
 ```
-
 <hr />
+
+**OKX Integration**
+
+<img src="https://mma.prnewswire.com/media/2014295/OKX_Logo_Logo.jpg?p=facebook" alt="OpenOcean">
+
+```solidity
+    /**
+     *  @notice Creates the swap with OKX's aggregation router
+     *  @param swapdata The data from OKX`s swap quote query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function _swapTokensOkx(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+        // Get the approve proxy from the router
+        address okxApproveProxy = IOkxAggregator(OKX_AGGREGATION_ROUTER).approveProxy();
+
+        // Get the token approve contract from the proxy
+        address tokenApprove = IOkxProxy(okxApproveProxy).tokenApprove();
+
+        // Approve Okx' tokenApprove contract in `srcToken`
+        _approveToken(srcToken, tokenApprove, srcAmount);
+
+        // Call the OKX router with the swap data passed to use all methods
+        (bool success, bytes memory resultData) = OKX_AGGREGATION_ROUTER.call{value: msg.value}(swapdata);
+
+        /// @custom:error OkxTransactionFailed
+        if (!success) _extensionRevert(resultData);
+
+        // Return amount received
+        /// @solidity memory-safe-assembly
+        assembly {
+            amountOut := mload(add(resultData, 32))
+        }
+    }
+```
 
 <hr />
 
