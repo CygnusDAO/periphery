@@ -605,6 +605,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
 
     // Clean Dust
 
+    
     /**
      *  @notice Send dust to user who leveraged USDC into LP, if any
      *  @param token0 The address of token0 from the LP
@@ -618,16 +619,19 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Check for dust of token1
         uint256 leftAmount1 = _checkBalance(token1);
 
-        // Check for dust of USDC
-        uint256 leftAmountUsd = _checkBalance(usd);
-
         // Send leftover token0 to user
         if (leftAmount0 > 0) token0.safeTransfer(recipient, leftAmount0);
 
         // Send leftover token1 to user
         if (leftAmount1 > 0) token1.safeTransfer(recipient, leftAmount1);
 
-        // Send leftover usdc to user
-        if (leftAmountUsd > 0) usd.safeTransfer(recipient, leftAmountUsd);
+        // Check if either token from the LP is USDC
+        if (token0 != usd && token1 != usd) {
+            // Check for dust of USDC
+            uint256 leftAmountUsd = _checkBalance(usd);
+
+            // Send leftover usdc to user
+            if (leftAmountUsd > 0) usd.safeTransfer(recipient, leftAmountUsd);
+        }
     }
 }
