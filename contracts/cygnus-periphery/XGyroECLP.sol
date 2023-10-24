@@ -32,7 +32,7 @@
                       ░░░░░░    ░░░░░░      -------=========*             🛰️         .                     ⠀
            .                            .🛰️       .          .            .                         🛰️ .             .⠀
     
-        CYGNUS ALTAIR EXTENSION - `Hypervisor`                                                           
+        CYGNUS ALTAIR EXTENSION - `Gyro ECLP (2 tokens)`                                                           
     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  */
 pragma solidity >=0.8.17;
 
@@ -48,21 +48,18 @@ import {FixedPointMathLib} from "./libraries/FixedPointMathLib.sol";
 import {IERC20} from "./interfaces/core/IERC20.sol";
 import {IHangar18} from "./interfaces/core/IHangar18.sol";
 import {IWrappedNative} from "./interfaces/IWrappedNative.sol";
-import {IAlgebraPool, IHypervisor, IGammaProxy} from "./interfaces-extension/IHypervisor.sol";
 import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 
+import {IGyroECLPPool} from "./interfaces-extension/IGyroECLPPool.sol";
+import {IVault} from "./interfaces-extension/IVault.sol";
+
 /**
- *  @title  XHypervisor Extension for Hypervisor pools
+ *  @title  XGyroECLP Extension for Balancer Gyro ECLP Pools (2 tokens)
  *  @author CygnusDAO
- *  @notice There are 2 ways to swap tokens: `swapTokensOptimized` and `swapTokensLegacy`. Legacy methods require
- *          the actual amount of tokenIn being swapped as we need to pass this amount to the aggregator router in
- *          the function call. With optimized routers we perform a low level call so the amount of tokenIn being
- *          swapped is already encoded in the call. We do this only for leverage functions as when we deleverage
- *          we already know the amount of tokenIn we need to swap as we have done an LP burn prior to this.
  */
-contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
+contract XGyroECLP is CygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           1. LIBRARIES
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -76,6 +73,11 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
      *  @custom:library FixedPointMathLib Arithmetic library with operations for fixed-point numbers
      */
     using FixedPointMathLib for uint256;
+
+    /**
+     *  @notice Balancer VAULT
+     */
+    IVault public constant VAULT = IVault(0xBA12222222228d8Ba445958a75a0704d566BF2C8);
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           3. CONSTRUCTOR
@@ -100,41 +102,19 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
      *  @return weight0 The weight of token0 in the LP
      *  @return weight1 The weight of token1 in the LP
      */
-    function _tokenWeights(
-        address lpTokenPair,
-        address token0,
-        address token1,
-        address gammaUniProxy
-    ) private view returns (uint256 weight0, uint256 weight1) {
-        // Get scalars of each toekn
-        uint256 scalar0 = 10 ** IERC20(token0).decimals();
-        uint256 scalar1 = 10 ** IERC20(token1).decimals();
+    function _tokenWeights(IGyroECLPPool lpTokenPair) private view returns (uint256 weight0, uint256 weight1) {
+        // Get current balances
+        (, uint256[] memory balances, ) = VAULT.getPoolTokens(lpTokenPair.getPoolId());
 
-        // Calculate difference in units
-        uint256 scalarDifference = scalar0.divWad(scalar1);
+        // Token rates - All ECLP pools use a base token with 1-to-1 rate
+        (uint256 rate0, uint256 rate1) = lpTokenPair.getTokenRates();
 
-        // Adjust for token decimals
-        uint256 decimalsDenominator = scalarDifference > 1e12 ? 1e6 : 1;
+        // Calculate virtual base value
+        uint256 val0 = balances[0].mulWad(rate0);
+        uint256 val1 = balances[1].mulWad(rate1);
 
-        // Get sqrt price from Algebra pool
-        (uint256 sqrtPriceX96, , , , , , ) = IAlgebraPool(IHypervisor(lpTokenPair).pool()).globalState();
-
-        // Convert to price with scalar diff and denom to take into account decimals of tokens
-        uint256 price = ((sqrtPriceX96 ** 2 * (scalarDifference / decimalsDenominator)) / (2 ** 192)) * decimalsDenominator;
-
-        // How much we would need to deposit of token1 if we are depositing 1 unit of token0
-        (uint256 low1, uint256 high1) = IGammaProxy(gammaUniProxy).getDepositAmount(lpTokenPair, token0, scalar0);
-
-        // Final token1 amount
-        uint256 token1Amount = ((low1 + high1) / 2).divWad(scalar1);
-
-        // Get ratio
-        uint256 ratio = token1Amount.divWad(price);
-
-        // Return weight of token0 in the LP
-        weight0 = 1e36 / (ratio + 1e18);
-
-        // Weight of token1
+        // Weights
+        weight0 = val0.divWad(val0 + val1);
         weight1 = 1e18 - weight0;
     }
 
@@ -148,31 +128,20 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         uint256 shares,
         uint256 difference
     ) external view override returns (address[] memory tokens, uint256[] memory amounts) {
+        // Get poolId
+        bytes32 poolId = IGyroECLPPool(underlying).getPoolId();
+
         // Get total supply of the underlying pool
-        uint256 totalSupply = IHypervisor(underlying).totalSupply();
+        uint256 totalSupply = IGyroECLPPool(underlying).totalSupply();
 
-        // Get reserves from the LP
-        (uint256 reserves0, uint256 reserves1) = IHypervisor(underlying).getTotalAmounts();
+        // Get pool tokens and amounts from VAULT
+        (tokens, amounts, ) = VAULT.getPoolTokens(poolId);
 
-        // Initialize the arrays
-        tokens = new address[](2);
-
-        // Empty amounts
-        amounts = new uint256[](2);
-
-        // Token 0 from the underlying
-        tokens[0] = IHypervisor(underlying).token0();
-
-        // Token1 from the underlying
-        tokens[1] = IHypervisor(underlying).token1();
-
-        // Same calculation as other vault tokens, asset = shares * balance / supply
-
-        // Amount out token0 from the LP
-        amounts[0] = shares.fullMulDiv(reserves0, totalSupply) - difference;
-
-        // Amount of token1 from the LP
-        amounts[1] = shares.fullMulDiv(reserves1, totalSupply) - difference;
+        // Calculate the asset amounts for each token
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Calculate the asset amount for the current token
+            amounts[i] = shares.fullMulDiv(amounts[i], totalSupply) - difference;
+        }
     }
 
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
@@ -196,11 +165,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         address token1,
         uint256 amountUsd,
         bytes[] memory swapdata,
-        address lpTokenPair,
-        address gammaUniProxy
+        address lpTokenPair
     ) private {
         // Get the token weights
-        (uint256 weight0, uint256 weight1) = _tokenWeights(lpTokenPair, token0, token1, gammaUniProxy);
+        (uint256 weight0, uint256 weight1) = _tokenWeights(IGyroECLPPool(lpTokenPair));
 
         // Amount of usd to swap to token0
         uint256 token0Amount = weight0.mulWad(amountUsd);
@@ -241,104 +209,84 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     /**
      *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsd` of USD
      *  @notice Maximum 2 swaps
-     *  @param token0 The address of token0 from the LP Token
-     *  @param token1 The address of token1 from the LP Token
      *  @param amountUsd The amount of USD to convert to LP
      *  @param swapdata Bytes array consisting of 1inch API swap data
      *  @return liquidity The amount of LP minted
      */
     function _convertUsdToLiquidity(
         ICygnusAltair.DexAggregator dexAggregator,
-        address token0,
-        address token1,
         uint256 amountUsd,
         bytes[] memory swapdata,
-        address lpTokenPair
+        address lpTokenPair,
+        address recipient
     ) private returns (uint256 liquidity) {
-        // Get the whitelsited address - the only one allowed to deposit in hypervisor
-        address gammaUniProxy = IHypervisor(lpTokenPair).whitelistedAddress();
+        // 1. Get pool ID and tokens to deposit in the vault
+        bytes32 poolId = IGyroECLPPool(lpTokenPair).getPoolId();
 
-        // Check if the aggregator is a legacy aggregator (ie uses a hardcoded method such as `swap`)
+        // Tokens and amounts
+        (address[] memory tokens, uint256[] memory balances, ) = VAULT.getPoolTokens(poolId);
+
+        // 2. Swap USDC to LP assets
         if (_isLegacy(dexAggregator)) {
             // Swap with open ocean v1 or one inch v1
-            _swapTokensLegacy(dexAggregator, token0, token1, amountUsd, swapdata, lpTokenPair, gammaUniProxy);
+            _swapTokensLegacy(dexAggregator, tokens[0], tokens[1], amountUsd, swapdata, lpTokenPair);
         }
         // Not legacy, swap with calldata
-        else _swapTokensOptimized(dexAggregator, token0, token1, amountUsd, swapdata);
+        else _swapTokensOptimized(dexAggregator, tokens[0], tokens[1], amountUsd, swapdata);
 
-        // Check balance of token0
-        uint256 deposit0 = _checkBalance(token0);
+        // 3. Calculate BPT out given our balance of BPT token assets
+        // Since Gyro pools only support ALL_TOKENS_IN_FOR_BPT_OUT we need to calculate the BPT
+        // to mint to join the pool
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = _checkBalance(tokens[0]);
+        amounts[1] = _checkBalance(tokens[1]);
 
-        // Balance of token1
-        uint256 deposit1 = _checkBalance(token1);
+        // From Gyro pool
+        uint256 totalSupply = IGyroECLPPool(lpTokenPair).totalSupply();
+        uint256 bpt0 = amounts[0].fullMulDiv(totalSupply, balances[0]);
+        uint256 bpt1 = amounts[1].fullMulDiv(totalSupply, balances[1]);
 
-        // Approve token0 in hypervisor
-        _approveToken(token0, lpTokenPair, deposit0);
+        // 4. Join pool and mint BPT
+        bytes memory userData = abi.encode(3, bpt0 > bpt1 ? bpt1 : bpt0);
 
-        // Approve token1 in hypervisor
-        _approveToken(token1, lpTokenPair, deposit1);
+        // Approve Balancer vault in deposit tokens
+        _approveToken(tokens[0], address(VAULT), amounts[0]);
+        _approveToken(tokens[1], address(VAULT), amounts[1]);
 
-        // Get the minimum and maximum limit of token1 deposit given our balance of token0
-        (uint256 low1, uint256 high1) = IGammaProxy(gammaUniProxy).getDepositAmount(lpTokenPair, token0, deposit0);
+        // Mint requested BPT
+        VAULT.joinPool(poolId, address(this), address(this), IVault.JoinPoolRequest(tokens, amounts, userData, false));
 
-        // If our balance of token1 is lower than the limit, get the limit of token0
-        if (deposit1 < low1) {
-            // Get the high limit of token0
-            (, uint256 high0) = IGammaProxy(gammaUniProxy).getDepositAmount(lpTokenPair, token1, deposit1);
+        // LP Token minted
+        liquidity = _checkBalance(lpTokenPair);
 
-            // If balance of token0 is higher than limit then deposit high limit
-            if (deposit0 > high0) deposit0 = high0;
-        }
-
-        // If our balance of token1 is higher than the limit, then deposit high limit
-        if (deposit1 > high1) deposit1 = high1;
-
-        // Mint LP
-        liquidity = IGammaProxy(gammaUniProxy).deposit(deposit0, deposit1, address(this), lpTokenPair, [uint256(0), 0, 0, 0]);
+        // Clean dust (if any) from redeeming BPT and receiving tokens
+        _cleanDust(tokens[0], tokens[1], recipient);
     }
 
     /**
      *  @notice Converts an amount of LP Token to USD. It is called after calling `burn` on a uniswapV2 pair, which
      *          receives amountTokenA of token0 and amountTokenB of token1.
      *  @notice Maximum 2 swaps
-     *  @param amountTokenA The amount of token A to convert to USD
-     *  @param amountTokenB The amount of token B to convert to USD
-     *  @param token0 The address of token0 from the LP Token pair
-     *  @param token1 The addre.s of token1 from the LP Token pair
+     *  @param dexAggregator The dex aggregator for the swap
+     *  @param tokens Tokens array for the pool
+     *  @param amounts The amounts array to swap to usdc of each toke
      *  @param swapdata Bytes array consisting of 1inch API swap data
      */
     function _convertLiquidityToUsd(
         ICygnusAltair.DexAggregator dexAggregator,
-        uint256 amountTokenA,
-        uint256 amountTokenB,
-        address token0,
-        address token1,
+        address[] memory tokens,
+        uint256[] memory amounts,
         bytes[] memory swapdata
-    ) private returns (uint256) {
-        // ─────────────────────── 1. Check if token0 or token1 is already USD
-        uint256 amountA;
-        uint256 amountB;
-
-        // If token0 or token1 is USD then swap opposite
-        if (token0 == usd || token1 == usd) {
-            // Convert the other token to USD and return
-            (amountA, amountB) = token0 == usd
-                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB))
-                : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA), amountTokenB);
-
-            // Explicit return
-            return amountA + amountB;
+    ) internal virtual returns (uint256) {
+        // At this point we have array of `tokens` and `amounts` received after redeeming the BPT
+        // We swap each one to USD
+        for (uint256 i = 0; i < tokens.length; i++) {
+            // Check that token `i` is not USD
+            if (tokens[i] != usd) _swapTokensAggregator(dexAggregator, swapdata[i], tokens[i], usd, amounts[i]);
         }
 
-        // ─────────────────── 2. Not USD, swap both to USD
-        // Swap token0 to USD with received amount of token0 from the LP burn
-        amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
-
-        // Swap token1 to USD with received amount of token1 from the LP burn
-        amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
-
         // USD balance
-        return amountA + amountB;
+        return _checkBalance(usd);
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
@@ -370,22 +318,31 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Flash redeem the LP back to the contract
         ICygnusCollateral(collateral).flashRedeemAltair(address(this), redeemAmount, LOCAL_BYTES);
 
-        // Burn LP Token and return amountA and amountB
-        (uint256 amountAMax, uint256 amountBMax) = IHypervisor(lpTokenPair).withdraw(
-            redeemAmount,
+        // Pool Id
+        bytes32 poolId = IGyroECLPPool(lpTokenPair).getPoolId();
+
+        // Tokens array for this BPT
+        (address[] memory tokens, , ) = VAULT.getPoolTokens(poolId);
+
+        // Min amounts
+        uint256[] memory amounts = new uint256[](tokens.length);
+
+        // Exit pool - use `EXACT_BPT_IN_FOR_TOKENS_OUT`
+        VAULT.exitPool(
+            poolId,
             address(this),
-            address(this),
-            [uint256(0), 0, 0, 0]
+            payable(address(this)),
+            IVault.ExitPoolRequest(tokens, amounts, abi.encode(1, redeemAmount), false)
         );
 
-        // Token0 and token1 from the LP
-        address token0 = IHypervisor(lpTokenPair).token0();
-        address token1 = IHypervisor(lpTokenPair).token1();
+        // Update amounts array with received amounts of each token
+        amounts[0] = _checkBalance(tokens[0]);
+        amounts[1] = _checkBalance(tokens[1]);
 
-        // Convert amountA and amountB to USD
-        _convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
+        // Swap all amounts to USDC
+        _convertLiquidityToUsd(dexAggregator, tokens, amounts, swapdata);
 
-        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate (paraswap..)
+        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
         usdAmount = _checkBalance(usd);
 
         /// @custom:error InsufficientLiquidateUsd Avoid if received is less than liquidated
@@ -398,7 +355,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         usd.safeTransfer(borrowable, repayAmount);
 
         // Clean dust from selling tokens to USDC
-        _cleanDust(token0, token1, recipient);
+        _cleanDust(tokens[0], tokens[1], recipient);
     }
 
     /**
@@ -452,12 +409,8 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         ICygnusAltair.DexAggregator dexAggregator,
         bytes[] memory swapdata
     ) private returns (uint256 liquidity) {
-        // Get tokens from the LP
-        address token0 = IHypervisor(lpTokenPair).token0();
-        address token1 = IHypervisor(lpTokenPair).token1();
-
-        // Converts the borrowed amount of USD to tokenA and tokenB to mint the LP Token
-        liquidity = _convertUsdToLiquidity(dexAggregator, token0, token1, borrowAmount, swapdata, lpTokenPair);
+        // Mint BPT
+        liquidity = _convertUsdToLiquidity(dexAggregator, borrowAmount, swapdata, lpTokenPair, recipient);
 
         /// @custom:error InsufficientLPTokenAmount Avoid if LP Token amount received is less than min
         if (liquidity < lpAmountMin) revert CygnusAltair__InsufficientLPTokenAmount();
@@ -470,9 +423,6 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
 
         // Mint CygLP to the recipient
         ICygnusCollateral(collateral).deposit(liquidity, recipient, emptyPermit, LOCAL_BYTES);
-
-        // Check for dust from after leverage
-        _cleanDust(token0, token1, recipient);
     }
 
     /**
@@ -526,27 +476,29 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         ICygnusAltair.DexAggregator dexAggregator,
         bytes[] memory swapdata
     ) private returns (uint256 usdAmount) {
-        // Burn LP Token and return amountA and amountB
-        (uint256 amountAMax, uint256 amountBMax) = IHypervisor(lpTokenPair).withdraw(
-            redeemAmount,
+        // Pool Id
+        bytes32 poolId = IGyroECLPPool(lpTokenPair).getPoolId();
+
+        // Create exit pool request
+        (address[] memory tokens, , ) = VAULT.getPoolTokens(poolId);
+        uint256[] memory amounts = new uint256[](tokens.length);
+
+        // Exit pool, burn BPT and receive pool tokens - uses 'EXACT_BPT_IN_FOR_TOKENS_OUT'
+        VAULT.exitPool(
+            poolId,
             address(this),
-            address(this),
-            [uint256(0), 0, 0, 0]
+            payable(address(this)),
+            IVault.ExitPoolRequest(tokens, amounts, abi.encode(1, redeemAmount), false)
         );
 
-        // Token0 from the LP
-        address token0 = IHypervisor(lpTokenPair).token0();
+        // Update amounts array with received amounto feach token
+        amounts[0] = _checkBalance(tokens[0]);
+        amounts[1] = _checkBalance(tokens[1]);
 
-        // Token1 from the LP
-        address token1 = IHypervisor(lpTokenPair).token1();
+        // Swap all amounts to USDC
+        usdAmount = _convertLiquidityToUsd(dexAggregator, tokens, amounts, swapdata);
 
-        // Convert amountA and amountB to USD
-        _convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
-
-        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
-        usdAmount = _checkBalance(usd);
-
-        /// @custom:error InsufficientRedeemAmount Avoid if USD received is less than min
+        /// @custom:error CygnusAltair__InsufficientUSDAmount Avoid if USD received is less than min
         if (usdAmount < usdAmountMin) revert CygnusAltair__InsufficientUSDAmount();
 
         // Repay USD
@@ -555,8 +507,8 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // repay flash redeem
         ICygnusCollateral(collateral).transferFrom(borrower, collateral, redeemTokens);
 
-        // Check for dust from after deleverage
-        _cleanDust(token0, token1, borrower);
+        // Clean dust (if any) from redeeming BPT and receiving tokens
+        _cleanDust(tokens[0], tokens[1], borrower);
     }
 
     /**

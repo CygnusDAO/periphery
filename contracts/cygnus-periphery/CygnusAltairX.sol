@@ -684,6 +684,19 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         else revert CygnusAltair__InvalidAggregator();
     }
 
+    /**
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @return Whether or not the dex aggregator is a legacy aggregator
+     */
+    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) internal pure returns (bool) {
+        // Only legacy aggregators are open ocean v1 and one inch v1
+        return
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
+    }
+
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
 
     /**
