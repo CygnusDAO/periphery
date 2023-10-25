@@ -208,7 +208,6 @@ contract XGyroECLP is CygnusAltairX, ICygnusAltairCall {
 
     /**
      *  @notice This function gets called after calling `borrow` on Borrow contract and having `amountUsd` of USD
-     *  @notice Maximum 2 swaps
      *  @param amountUsd The amount of USD to convert to LP
      *  @param swapdata Bytes array consisting of 1inch API swap data
      *  @return liquidity The amount of LP minted
@@ -223,8 +222,8 @@ contract XGyroECLP is CygnusAltairX, ICygnusAltairCall {
         // 1. Get pool ID and tokens to deposit in the vault
         bytes32 poolId = IGyroECLPPool(lpTokenPair).getPoolId();
 
-        // Tokens and amounts
-        (address[] memory tokens, uint256[] memory balances, ) = VAULT.getPoolTokens(poolId);
+        // Get pool tokens - We get balances after the swap in case aggregators swap through the pool
+        (address[] memory tokens, , ) = VAULT.getPoolTokens(poolId);
 
         // 2. Swap USDC to LP assets
         if (_isLegacy(dexAggregator)) {
@@ -234,32 +233,56 @@ contract XGyroECLP is CygnusAltairX, ICygnusAltairCall {
         // Not legacy, swap with calldata
         else _swapTokensOptimized(dexAggregator, tokens[0], tokens[1], amountUsd, swapdata);
 
-        // 3. Calculate BPT out given our balance of BPT token assets
-        // Since Gyro pools only support ALL_TOKENS_IN_FOR_BPT_OUT we need to calculate the BPT
-        // to mint to join the pool
-        uint256[] memory amounts = new uint256[](2);
-        amounts[0] = _checkBalance(tokens[0]);
-        amounts[1] = _checkBalance(tokens[1]);
+        // 3. Calculate BPT out given our balance of each token from the BPT.
+        //
+        // Since Gyro pools only support ALL_TOKENS_IN_FOR_BPT_OUT we need to calculate the BPT to join the pool.
+        //
+        // We follow the same calculation from the GyroECLP pool to calculate amountsIn given Bpt Out (rounds up):
+        //
+        //                              /   bptOut   \
+        // amountsIn[i] = balances[i] * | ------------|
+        //                              \  totalBPT  /
+        //
+        // We know amounts in so we do the opposite, rounding up: The min BPT of the 2 is the one that is allowed to 
+        // bptOut[i] = amountIn[i] * totalBPT / balances[i]
+        //
+        // Get balances again after the swap
+        (, uint256[] memory balances, ) = VAULT.getPoolTokens(poolId);
 
-        // From Gyro pool
+        // These are our amountsIn of each token
+        (uint256 amount0, uint256 amount1) = (_checkBalance(tokens[0]), _checkBalance(tokens[1]));
+
+        // Calculat BPT out given our amountsIn:
+        // Total supply of BPT
         uint256 totalSupply = IGyroECLPPool(lpTokenPair).totalSupply();
-        uint256 bpt0 = amounts[0].fullMulDiv(totalSupply, balances[0]);
-        uint256 bpt1 = amounts[1].fullMulDiv(totalSupply, balances[1]);
 
-        // 4. Join pool and mint BPT
-        bytes memory userData = abi.encode(3, bpt0 > bpt1 ? bpt1 : bpt0);
+        // BPT out for amountIn of token0
+        uint256 bpt0 = amount0.fullMulDivUp(totalSupply, balances[0]);
 
-        // Approve Balancer vault in deposit tokens
-        _approveToken(tokens[0], address(VAULT), amounts[0]);
-        _approveToken(tokens[1], address(VAULT), amounts[1]);
+        // BPT out for amountIn of token1
+        uint256 bpt1 = amount1.fullMulDivUp(totalSupply, balances[1]);
+
+        // 4. Create the Join Request and mint BPT.
+        // Override array
+        balances[0] = amount0;
+        balances[1] = amount1;
+
+        // Check allowance and approve both tokens if necessary
+        _approveToken(tokens[0], address(VAULT), amount0);
+        _approveToken(tokens[1], address(VAULT), amount1);
 
         // Mint requested BPT
-        VAULT.joinPool(poolId, address(this), address(this), IVault.JoinPoolRequest(tokens, amounts, userData, false));
+        VAULT.joinPool(
+            poolId,
+            address(this),
+            address(this),
+            IVault.JoinPoolRequest(tokens, balances, abi.encode(3, bpt0 > bpt1 ? bpt1 - 1 : bpt0 - 1), false)
+        );
 
-        // LP Token minted
+        // Balance of LP
         liquidity = _checkBalance(lpTokenPair);
 
-        // Clean dust (if any) from redeeming BPT and receiving tokens
+        // Clean dust if any
         _cleanDust(tokens[0], tokens[1], recipient);
     }
 
