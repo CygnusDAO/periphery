@@ -513,191 +513,7 @@ contract CygnusAltair is ICygnusAltair {
             );
     }
 
-    /**
-     *  @notice Avoid stack too deep
-     *  @param collateral The address of the CygLP
-     *  @param user The address of the borrower
-     */
-    function _latestBorrowerInfo(
-        address collateral,
-        address user
-    )
-        internal
-        view
-        returns (
-            uint256 cygLPBalance,
-            uint256 principal,
-            uint256 borrowBalance,
-            uint256 price,
-            uint256 rate,
-            uint256 positionUsd,
-            uint256 positionLp,
-            uint256 health
-        )
-    {
-        // Position info
-        (cygLPBalance, principal, borrowBalance, price, rate, positionUsd, positionLp, health) = ICygnusCollateral(collateral)
-            .getBorrowerPosition(user);
-    }
-
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
-
-    //  POSITIONS ────────────────────────────────────
-
-    /**
-     *  @notice Returns the borrower`s overall positions (borrows, position in usd and balance) across the whole protocol
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestBorrowerAll(address user) external returns (uint256 principal, uint256 borrowBalance, uint256 positionUsd) {
-        // Total lending pools in Cygnus
-        uint256 totalShuttles = hangar18.shuttlesDeployed();
-
-        // Loop through each pool and update borrower's position
-        for (uint256 i = 0; i < totalShuttles; i++) {
-            // Get borrowale and collateral for shuttle `i`
-            (, , address borrowable, address collateral, ) = hangar18.allShuttles(i);
-
-            // Accrue interest in borrowable
-            ICygnusBorrow(borrowable).sync();
-
-            // Get collateral position
-            (, uint256 _principal, uint256 _borrowBalance, , , uint256 _positionUsd, , ) = ICygnusCollateral(collateral)
-                .getBorrowerPosition(user);
-
-            // Increase total principal
-            principal += _principal;
-
-            // Increase total borrowed balance
-            borrowBalance += _borrowBalance;
-
-            // Increase the borrower`s position in USD
-            positionUsd += _positionUsd;
-        }
-    }
-
-    /**
-     *  @notice Returns the lenders`s overall positions (cygUsd and position in USD) across the whole protocol
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestLenderAll(address user) external returns (uint256 cygUsdBalance, uint256 positionUsd) {
-        // Total lending pools in Cygnus
-        uint256 totalShuttles = hangar18.shuttlesDeployed();
-
-        // Loop through each pool and update lender's position
-        for (uint256 i = 0; i < totalShuttles; i++) {
-            // Get borrowable contract for shuttle `i`
-            (, , address borrowable, , ) = hangar18.allShuttles(i);
-
-            // Accrue interest
-            ICygnusBorrow(borrowable).sync();
-
-            // Get lender position
-            (uint256 _cygUsdBalance, , uint256 _positionUsd) = ICygnusBorrow(borrowable).getLenderPosition(user);
-
-            // Increase shares balance
-            cygUsdBalance += _cygUsdBalance;
-
-            // Increase assets balance
-            positionUsd += _positionUsd;
-        }
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestLenderPosition(
-        ICygnusBorrow borrowable,
-        address lender
-    ) external returns (uint256 cygUsdBalance, uint256 rate, uint256 positionUsd) {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Return latest position
-        return borrowable.getLenderPosition(lender);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestBorrowerPosition(
-        ICygnusBorrow borrowable,
-        address borrower
-    )
-        external
-        returns (
-            uint256 cygLPBalance,
-            uint256 principal,
-            uint256 borrowBalance,
-            uint256 price,
-            uint256 rate,
-            uint256 positionUsd,
-            uint256 positionLp,
-            uint256 health
-        )
-    {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Get collateral contract
-        address collateral = borrowable.collateral();
-
-        // Return latest info
-        return _latestBorrowerInfo(collateral, borrower);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestAccountLiquidity(ICygnusBorrow borrowable, address borrower) external returns (uint256 liquidity, uint256 shortfall) {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // Get collateral contract
-        address collateral = borrowable.collateral();
-
-        // Liquidity info
-        (liquidity, shortfall) = ICygnusCollateral(collateral).getAccountLiquidity(borrower);
-    }
-
-    /**
-     *  @notice Accrues interest
-     *  @inheritdoc ICygnusAltair
-     */
-    function latestShuttleInfo(
-        ICygnusBorrow borrowable
-    )
-        external
-        returns (uint256 supplyApr, uint256 borrowApr, uint256 util, uint256 totalBorrows, uint256 totalBalance, uint256 exchangeRate)
-    {
-        // Accrue interest and update balance
-        borrowable.sync();
-
-        // For APRs
-        uint256 secondsPerYear = 24 * 60 * 60 * 365;
-
-        // The APR for lenders
-        supplyApr = borrowable.supplyRate() * secondsPerYear;
-
-        // The interest rate for borrowers
-        borrowApr = borrowable.borrowRate() * secondsPerYear;
-
-        // Utilization rate
-        util = borrowable.utilizationRate();
-
-        // Total borrows stored in the contract
-        totalBorrows = borrowable.totalBorrows();
-
-        // Available cash
-        totalBalance = borrowable.totalBalance();
-
-        // The latest exchange rate
-        exchangeRate = borrowable.exchangeRate();
-    }
 
     // Start periphery functions:
     //   1. Borrow
@@ -739,7 +555,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata permitData
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Check permit on USDC
@@ -764,7 +579,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata signature
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Check for permit (else users can just approve permit2 and skip this by passing an empty
@@ -802,7 +616,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata signature
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Signture transfer
@@ -836,7 +649,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata permitData
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Check permit
@@ -862,7 +674,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata signature
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Check for permit (else users can just approve permit2 and skip this by passing an empty
@@ -901,7 +712,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes calldata signature
     ) external virtual override checkDeadline(deadline) returns (uint256 amount, uint256 seizeTokens) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Signture transfer
@@ -936,7 +746,6 @@ contract CygnusAltair is ICygnusAltair {
         bytes[] calldata swapdata
     ) external virtual override checkDeadline(deadline) returns (uint256 amount) {
         // Ensure that the amount to repay is never more than currently owed.
-        // Accrues interest first then gets the borrow balance
         amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Get LP TokenPair

@@ -336,7 +336,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @param amountMax The max available amount
      */
     function _repayAndRefund(address borrowable, address token, address borrower, uint256 amountMax) internal {
-        // Repay
+        // Ensure that the amount to repay is never more than currently owed.
         uint256 amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Safe transfer USD to borrowable
