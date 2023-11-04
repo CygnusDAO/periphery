@@ -167,11 +167,6 @@ interface ICygnusAltairX {
     function OPEN_OCEAN_EXCHANGE_PROXY() external pure returns (address);
 
     /**
-     *  @return OKX_AGGREGATION_ROUTER The address of OKX's Aggregation Router on this chain
-     */
-    function OKX_AGGREGATION_ROUTER() external pure returns (address);
-
-    /**
      *  @return UNISWAP_V3_ROUTER The address of UniswapV3's swap router
      */
     function UNISWAP_V3_ROUTER() external pure returns (address);

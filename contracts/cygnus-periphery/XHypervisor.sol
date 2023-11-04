@@ -95,6 +95,19 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
     /*  ─────────────────────────────────────────────── Private ───────────────────────────────────────────────  */
 
     /**
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @return Whether or not the dex aggregator is a legacy aggregator
+     */
+    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) private pure returns (bool) {
+        // Only legacy aggregators are open ocean v1 and one inch v1
+        return
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
+    }
+
+    /**
      *  @notice Returns the weight of each asset in the LP
      *  @param lpTokenPair The address of the LP
      *  @return weight0 The weight of token0 in the LP
@@ -331,10 +344,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         }
 
         // ─────────────────── 2. Not USD, swap both to USD
-        // Swap token0 to USD with received amount of token0 from the LP burn
+        // Swap token0 to USD
         amountA = _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
 
-        // Swap token1 to USD with received amount of token1 from the LP burn
+        // Swap token1 to USD
         amountB = _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
 
         // USD balance
@@ -385,7 +398,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         // Convert amountA and amountB to USD
         _convertLiquidityToUsd(dexAggregator, amountAMax, amountBMax, token0, token1, swapdata);
 
-        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate (paraswap..)
+        // Manually get the balance, this is because in some cases the amount returned by aggregators is not 100% accurate
         usdAmount = _checkBalance(usd);
 
         /// @custom:error InsufficientLiquidateUsd Avoid if received is less than liquidated
@@ -609,14 +622,5 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
 
         // Send leftover token1 to user
         if (leftAmount1 > 0) token1.safeTransfer(recipient, leftAmount1);
-
-        // Check if either token from the LP is USDC
-        if (token0 != usd && token1 != usd) {
-            // Check for dust of USDC
-            uint256 leftAmountUsd = _checkBalance(usd);
-
-            // Send leftover usdc to user
-            if (leftAmountUsd > 0) usd.safeTransfer(recipient, leftAmountUsd);
-        }
     }
 }
