@@ -18,9 +18,79 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
-import {IERC20Permit} from "./IERC20Permit.sol";
+// Dependencies
+import {ICygnusBorrowVoid} from "./ICygnusBorrowVoid.sol";
 
-interface ICygnusBorrow is IERC20Permit {
+// Overrides
+import {ICygnusTerminal} from "./ICygnusTerminal.sol";
+
+/**
+ *  @title ICygnusBorrow Interface for the main Borrow contract which handles borrows/liquidations
+ *  @notice Main interface to borrow against collateral or liquidate positions
+ */
+interface ICygnusBorrow is ICygnusBorrowVoid {
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            1. CUSTOM ERRORS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Reverts if the borrower has insufficient liquidity for this borrow
+     *
+     *  @custom:error InsufficientLiquidity
+     */
+    error CygnusBorrow__InsufficientLiquidity();
+
+    /**
+     *  @dev Reverts if usd received is less than repaid after liquidating
+     *
+     *  @custom:error InsufficientUsdReceived
+     */
+    error CygnusBorrow__InsufficientUsdReceived();
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            2. CUSTOM EVENTS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Logs when a borrower takes out a loan
+     *
+     *  @param sender Indexed address of msg.sender (should be `Altair` address)
+     *  @param borrower Indexed address of the borrower
+     *  @param receiver Indexed address of receiver
+     *  @param borrowAmount The amount of USD borrowed
+     *  @param repayAmount The amount of USD repaid
+     *
+     *  @custom:event Borrow
+     */
+    event Borrow(address indexed sender, address indexed borrower, address indexed receiver, uint256 borrowAmount, uint256 repayAmount);
+
+    /**
+     *  @dev Logs when a liquidator repays and seizes collateral
+     *
+     *  @param sender Indexed address of msg.sender (should be `Altair` address)
+     *  @param borrower Indexed address of the borrower
+     *  @param receiver Indexed address of receiver
+     *  @param repayAmount The amount of USD repaid
+     *  @param cygLPAmount The amount of CygLP seized
+     *  @param usdAmount The total amount of underlying deposited
+     *
+     *  @custom:event Liquidate
+     */
+    event Liquidate(
+        address indexed sender,
+        address indexed borrower,
+        address indexed receiver,
+        uint256 repayAmount,
+        uint256 cygLPAmount,
+        uint256 usdAmount
+    );
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            4. NON-CONSTANT FUNCTIONS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
     /**
      *  @notice This low level function should only be called from `CygnusAltair` contract only
      *
@@ -47,71 +117,7 @@ interface ICygnusBorrow is IERC20Permit {
     function liquidate(address borrower, address receiver, uint256 repayAmount, bytes calldata data) external returns (uint256 usdAmount);
 
     /**
-     *  @notice Get the lender`s full position
-     *  @param lender The address of the lender
-     *  @return cygUsdBalance The `lender's` balance of CygUSD
-     *  @return rate The currente exchange rate
-     *  @return positionInUsd The lender's position in USD
-     */
-    function getLenderPosition(address lender) external view returns (uint256 cygUsdBalance, uint256 rate, uint256 positionInUsd);
-
-    /**
-     *  @notice This public view function is used to get the borrow balance of users based on stored data
-     *
-     *  @param borrower The address whose balance should be calculated
-     *
-     *  @return principal The USD amount borrowed without interest accrual
-     *  @return borrowBalance The USD amount borrowed with interest accrual (ie. USD amount the borrower must repay)
-     */
-    function getBorrowBalance(address borrower) external view returns (uint256 principal, uint256 borrowBalance);
-
-    /**
-     *  @notice Applies interest accruals to borrows and reserves
-     */
-    function accrueInterest() external;
-
-    /**
-     *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
-     */
-    function underlying() external view returns (address);
-
-    /**
-     *  @return collateral The address of this borrowable's collateral
-     */
-    function collateral() external view returns (address);
-
-    /**
-     *  @return supplyRate The current APR for lenders
-     */
-    function supplyRate() external view returns (uint256);
-
-    /**
-     *  @return borrowRate The current per-second borrow rate stored for this pool.
-     */
-    function borrowRate() external view returns (uint48);
-
-    /**
-     *  @return utilizationRate The total amount of borrowed funds divided by the total cash the pool has available
-     */
-    function utilizationRate() external view returns (uint256);
-
-    /**
-     *  @return totalBorrows Total borrows stored in the lending pool
-     */
-    function totalBorrows() external view returns (uint96);
-
-    /**
-     *  @return totalBalance Total USD balance in the pool
-     */
-    function totalBalance() external view returns (uint160);
-
-    /**
-     *  @return exchangeRate The latest exchange rate
-     */
-    function exchangeRate() external view returns (uint256);
-
-    /**
-     *  @notice Syncs the total balance to the underlying balance and accrues interest
+     *  @notice Manually sync the balance held of the underlying
      *  @custom:security non-reentrant
      */
     function sync() external;

@@ -18,90 +18,102 @@
 //  along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity >=0.8.17;
 
-import {IERC20Permit} from "./IERC20Permit.sol";
-import {IAllowanceTransfer} from "./IAllowanceTransfer.sol";
+// Dependencies
+import {ICygnusCollateralVoid} from "./ICygnusCollateralVoid.sol";
 
-interface ICygnusCollateral is IERC20Permit { 
-    /**
-     *  @return underlying The address of the underlying (LP Token for collateral contracts, USDC for borrow contracts)
-     */
-    function underlying() external view returns (address);
-
-    /**
-     *  @return exchangeRate The ratio which 1 pool token can be redeemed for underlying amount.
-     */
-    function exchangeRate() external view returns (uint256);
+/**
+ *  @title ICygnusCollateral
+ *  @notice Interface for the main collateral contract which handles collateral seizes and flash redeems
+ */
+interface ICygnusCollateral is ICygnusCollateralVoid {
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            1. CUSTOM ERRORS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
 
     /**
-     *  @return borrowable The address of the borrowable contract
-     */
-    function borrowable() external view returns (address);
-
-    function totalSupply() external view returns (uint256);
-    function totalAssets() external view returns (uint256);
-
-    /**
-     *  @notice This function must be called with the `approve` method of the underlying asset token contract for
-     *          the `assets` amount on behalf of the sender before calling this function.
-     *  @notice Implements the deposit of the underlying asset into the Cygnus Vault pool. This function transfers
-     *          the underlying assets from the sender to this contract and mints a corresponding amount of Cygnus
-     *          Vault shares to the recipient. A deposit fee may be charged by the strategy, which is deducted from
-     *          the deposited assets.
+     *  @dev Reverts when the user doesn't have enough liquidity to redeem
      *
-     *  @dev If the deposit amount is less than or equal to 0, this function will revert.
-     *
-     *  @param assets Amount of the underlying asset to deposit.
-     *  @param recipient Address that will receive the corresponding amount of shares.
-     *  @param _permit Data signed over by the owner specifying the terms of approval
-     *  @param _signature The owner's signature over the permit data
-     *  @return shares Amount of Cygnus Vault shares minted and transferred to the `recipient`.
+     *  @custom:error InsufficientLiquidity
      */
-    function deposit(
-        uint256 assets,
-        address recipient,
-        IAllowanceTransfer.PermitSingle calldata _permit,
-        bytes calldata _signature
-    ) external returns (uint256 shares);
+    error CygnusCollateral__InsufficientLiquidity();
 
     /**
-     *  @notice Gets the account's total position value in USD (LP Tokens owned multiplied by LP price). It uses the oracle to get the
-     *          price of the LP Token and uses the current exchange rate.
+     *  @dev Reverts when the msg.sender of the liquidation is not this contract`s borrowable
      *
+     *  @custom:error MsgSenderNotBorrowable
+     */
+    error CygnusCollateral__MsgSenderNotBorrowable();
+
+    /**
+     *  @dev Reverts when the repayAmount in a liquidation is 0
+     *
+     *  @custom:error CantLiquidateZero
+     */
+    error CygnusCollateral__CantLiquidateZero();
+
+    /**
+     *  @dev Reverts when trying to redeem 0 tokens
+     *
+     *  @custom:error CantRedeemZero
+     */
+    error CygnusCollateral__CantRedeemZero();
+
+    /**
+     * @dev Reverts when liquidating an account that has no shortfall
+     *
+     * @custom:error NotLiquidatable
+     */
+    error CygnusCollateral__NotLiquidatable();
+
+    /**
+     *  @dev Reverts when redeeming more shares than CygLP in this contract
+     *
+     *  @custom:error InsufficientRedeemAmount
+     */
+    error CygnusCollateral__InsufficientCygLPReceived();
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            2. CUSTOM EVENTS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /**
+     *  @dev Logs when collateral is seized from the borrower and sent to the liquidator
+     *
+     *  @param liquidator The address of the liquidator
+     *  @param borrower The address of the borrower being liquidated
+     *  @param cygLPAmount The amount of CygLP seized without taking into account incentive or fee
+     *  @param liquidatorAmount The aamount of CygLP seized sent to the liquidator (with the liq. incentive)
+     *  @param daoFee The amount of CygLP sent to the DAO Reserves
+     *  @param totalSeized The total amount of CygLP seized from the borrower
+     */
+    event SeizeCygLP(
+        address indexed liquidator,
+        address indexed borrower,
+        uint256 cygLPAmount,
+        uint256 liquidatorAmount,
+        uint256 daoFee,
+        uint256 totalSeized
+    );
+
+    /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
+            4. NON-CONSTANT FUNCTIONS
+        ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
+
+    /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
+
+    /**
+     *  @notice Seizes CygLP from borrower and adds it to the liquidator's account.
+     *  @notice Not marked as non-reentrant
+     *
+     *  @dev This should be called from `borrowable` contract, else it reverts
+     *
+     *  @param liquidator The address repaying the borrow and seizing the collateral
      *  @param borrower The address of the borrower
+     *  @param repayAmount The number of collateral tokens to seize
      *
-     *  @return cygLPBalance The user's balance of collateral (CygLP)
-     *  @return principal The original loaned USDC amount (without interest)
-     *  @return borrowBalance The original loaned USDC amount plus interest (ie. what the user must pay back)
-     *  @return price The current liquidity token price
-     *  @return positionUsd The borrower's position in USD. position = CygLP Balance * Exchange Rate * LP Token Price
-     *  @return positionLp The borrower`s position in LP Tokens
-     *  @return rate The current exchange rate between CygLP and LP Token
-     *  @return health The user's current loan health (once it reaches 100% the user becomes liquidatable)
+     *  @return liquidatorAmount The amount of CygLP that the liquidator received for liquidating the position
      */
-    function getBorrowerPosition(
-        address borrower
-    )
-        external
-        view
-        returns (
-            uint256 cygLPBalance,
-            uint256 principal,
-            uint256 borrowBalance,
-            uint256 price,
-            uint256 positionUsd,
-            uint256 positionLp,
-            uint256 rate,
-            uint256 health
-        );
-
-    /**
-     *  @notice Gets an account's liquidity or shortfall
-     *
-     *  @param borrower The address of the borrower
-     *  @return liquidity The account's liquidity in USDC
-     *  @return shortfall If user has no liquidity, return the shortfall in USDC
-     */
-    function getAccountLiquidity(address borrower) external view returns (uint256 liquidity, uint256 shortfall);
+    function seizeCygLP(address liquidator, address borrower, uint256 repayAmount) external returns (uint256 liquidatorAmount);
 
     /**
      *  @notice Flash redeems the underlying LP Token
@@ -116,4 +128,9 @@ interface ICygnusCollateral is IERC20Permit {
      */
     function flashRedeemAltair(address redeemer, uint256 assets, bytes calldata data) external returns (uint256 usdAmount);
 
+    /**
+     *  @notice Manually sync the balance held of the underlying
+     *  @custom:security non-reentrant
+     */
+    function sync() external;
 }

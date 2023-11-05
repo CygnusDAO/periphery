@@ -32,7 +32,7 @@
                       ░░░░░░    ░░░░░░      -------=========*             🛰️         .                     ⠀
            .                            .🛰️       .          .            .                         🛰️ .             .⠀
     
-        CYGNUS PERIPHERY ROUTER EXTENSION
+        CYGNUS ALTAIR EXTENSION - BASE STORAGE
     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  */
 pragma solidity >=0.8.17;
 
@@ -57,6 +57,7 @@ import {ICygnusNebulaRegistry} from "./interfaces/core/ICygnusNebulaRegistry.sol
 import {IAugustusSwapper} from "./interfaces/aggregators/IAugustusSwapper.sol";
 import {IAggregationRouterV5, IAggregationExecutor} from "./interfaces/aggregators/IAggregationRouterV5.sol";
 import {IOpenOceanExchange, IOpenOceanCaller} from "./interfaces/aggregators/IOpenOceanExchange.sol";
+import {IOkxAggregator, IOkxProxy} from "./interfaces/aggregators/IOkxAggregator.sol";
 
 import {IUniswapV3Router} from "./interfaces/aggregators/IUniswapV3Router.sol";
 import {IUniswapV3Factory} from "./interfaces/aggregators/IUniswapV3Factory.sol";
@@ -156,6 +157,11 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @inheritdoc ICygnusAltairX
      */
     address public constant override OPEN_OCEAN_EXCHANGE_PROXY = 0x6352a56caadC4F1E25CD6c75970Fa768A3304e64;
+
+    /**
+     *  @inheritdoc ICygnusAltairX
+     */
+    address public constant override OKX_AGGREGATION_ROUTER = 0xA748D6573acA135aF68F2635BE60CB80278bd855;
 
     /**
      *  @inheritdoc ICygnusAltairX
@@ -316,13 +322,13 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
-     *  @notice Safe internal function to repay borrowed amount
-     *  @param borrowable The address of the Cygnus borrow arm where the borrowed amount was taken from
-     *  @param amountMax The max amount that can be repaid
-     *  @param borrower The address of the account that is repaying the borrowed amount
+     *  @notice Function to ensure that the repaid amount doesn't exceed the currently owed amount
+     *  @param borrowable The address of the Cygnus borrowable contract
+     *  @param amountMax The amount being repaid
+     *  @param borrower The address of the borrower whose debt is being repaid
      */
     function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal view returns (uint256 amount) {
-        // Get latest borrow balance of borrower with borrow indices
+        // Get latest borrow balance of borrower
         (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
 
         // Avoid repaying more than borrowedAmount
@@ -330,13 +336,15 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
+     *  @notice Sends USDC back to the borrowable and calls `borrow` with no borrow amount, repaying the loan
+     *          and sending any leftover USDC back to the borrower
      *  @param borrowable Address of the Cygnus borrow contract
      *  @param token Address of the token we are repaying (USD)
      *  @param borrower Address of the borrower who is repaying the loan
      *  @param amountMax The max available amount
      */
     function _repayAndRefund(address borrowable, address token, address borrower, uint256 amountMax) internal {
-        // Ensure that the amount to repay is never more than currently owed.
+        // Ensure that the amount being repaid never more than currently owed.
         uint256 amount = _maxRepayAmount(borrowable, amountMax, borrower);
 
         // Safe transfer USD to borrowable
@@ -371,18 +379,18 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         /// Get the uniswapv3 factory on this chain
         IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
 
-        // Possible fees (0.01%, 0.05%, 0.3%, 1%)
-        uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
-
         // Start at 0
         uint256 maxLiquidity = 0;
+
+        // Possible fees (0.01%, 0.05%, 0.3%, 1%)
+        uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
 
         // Get the pool given each fee. If it exists, query the current liquidity of the pool to check
         // which pool has the highest liquidity and hence which pool will most likely offer the best amountOut.
         // In reality this doesn't always result in the highest amountOut, but it will at least filter out dead
-        // pools and it avoids us from having to use the UnsiwapV3 Quoter, which should not be used on-chain:
-        // (https://docs.uniswap.org/contracts/v3/reference/periphery/lens/QuoterV2
-        for (uint256 i = 0; i < fees.length; i++) {
+        // pools and saves us from having to use the UnsiwapV3 Quoter, which is gas inefficient should not be used on-chain:
+        // https://docs.uniswap.org/contracts/v3/reference/periphery/lens/QuoterV2
+        for (uint256 i = 0; i < fees.length; ) {
             // Get the pool given `fee`
             address pool = uniswapFactory.getPool(tokenIn, tokenOut, fees[i]);
 
@@ -393,6 +401,10 @@ abstract contract CygnusAltairX is ICygnusAltairX {
 
                 // If amountOut is higher than the last maxAmount then cache the pool fee and maxamount
                 if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
+            }
+
+            unchecked {
+                i++;
             }
         }
     }
@@ -470,7 +482,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         // Approve 1Inch Router in `srcToken` if necessary
         _approveToken(srcToken, ONE_INCH_ROUTER_V5, srcAmount);
 
-        // Call the augustus wrapper with the data passed, triggering the fallback function for multi/mega swaps
+        // Call the 1inch router with the swapdata passed
         (bool success, bytes memory resultData) = ONE_INCH_ROUTER_V5.call{value: msg.value}(swapdata);
 
         /// @custom:error 1InchTransactionFailed
@@ -557,6 +569,35 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
+     *  @notice Creates the swap with OKX's aggregation router
+     *  @param swapdata The data from OKX`s swap quote query
+     *  @param srcAmount The balanceOf this contract`s srcToken
+     *  @return amountOut The amount received of destination token
+     */
+    function _swapTokensOkx(bytes memory swapdata, address srcToken, uint256 srcAmount) internal returns (uint256 amountOut) {
+        // Get the approve proxy from the router
+        address okxApproveProxy = IOkxAggregator(OKX_AGGREGATION_ROUTER).approveProxy();
+
+        // Get the token approve contract from the proxy
+        address tokenApprove = IOkxProxy(okxApproveProxy).tokenApprove();
+
+        // Approve Okx' tokenApprove contract in `srcToken`
+        _approveToken(srcToken, tokenApprove, srcAmount);
+
+        // Call the OKX router with the swap data passed to use all methods
+        (bool success, bytes memory resultData) = OKX_AGGREGATION_ROUTER.call{value: msg.value}(swapdata);
+
+        /// @custom:error OkxTransactionFailed
+        if (!success) _extensionRevert(resultData);
+
+        // Return amount received
+        /// @solidity memory-safe-assembly
+        assembly {
+            amountOut := mload(add(resultData, 32))
+        }
+    }
+
+    /**
      *  @notice EMERGENCY ONLY - To be used in cases where aggregators stop working and users need to deleverage/liquidate positions.
      *  @notice Creates the swap with UniswapV3's router on this chain
      *  @param tokenIn The token we are swapping
@@ -630,12 +671,29 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         else if (dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_V2) {
             amountOut = _swapTokensOpenOceanV2(swapdata, srcToken, srcAmount);
         }
-        // Case 6: UNISWAPV3 - This is only for EMERGENCY deleverage/liquidiations!
+        // Case 6: OKX TODO
+        else if (dexAggregator == ICygnusAltair.DexAggregator.OKX) {
+            amountOut = _swapTokensOkx(swapdata, srcToken, srcAmount);
+        }
+        // Case 7: UNISWAPV3 - This is only for EMERGENCY deleverage/liquidiations!
         else if (dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY) {
             amountOut = _swapTokensUniswapV3(srcToken, dstToken, srcAmount);
         }
         /// @custom:error InvalidAggregator
         else revert CygnusAltair__InvalidAggregator();
+    }
+
+    /**
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @return Whether or not the dex aggregator is a legacy aggregator
+     */
+    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) internal pure returns (bool) {
+        // Only legacy aggregators are open ocean v1 and one inch v1
+        return
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
