@@ -32,7 +32,7 @@
                       ░░░░░░    ░░░░░░      -------=========*             🛰️         .                     ⠀
            .                            .🛰️       .          .            .                         🛰️ .             .⠀
     
-        CYGNUS ALTAIR EXTENSION - BASE STORAGE
+        CYGNUS PERIPHERY ROUTER EXTENSION
     ═══════════════════════════════════════════════════════════════════════════════════════════════════════════  */
 pragma solidity >=0.8.17;
 
@@ -262,6 +262,59 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         return shares.fullMulDiv(_totalAssets, _totalSupply);
     }
 
+    /**
+     *  @notice Makes sure that borrowers never repay more than they owe
+     *  @param borrowable The address of the Cygnus borrow arm where the borrowed amount was taken from
+     *  @param amountMax The max amount that can be repaid
+     *  @param borrower The address of the account that is repaying the borrowed amount
+     */
+    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal view returns (uint256 amount) {
+        // Get latest borrow balance of borrower
+        (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
+
+        // Avoid repaying more than borrowedAmount
+        amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
+    }
+
+    /**
+     *  @notice Calculates the pool with the best fee to swap `tokenIn` to `tokenOut` given `amountIn`
+     *  @param tokenIn The address of the token we are swapping
+     *  @param tokenOut The address of the token we are receiving
+     */
+    function _optimalPoolFee(address tokenIn, address tokenOut) internal view returns (uint24 poolFee) {
+        /// Get the uniswapv3 factory on this chain
+        IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
+
+        // Start at 0
+        uint256 maxLiquidity = 0;
+
+        // Possible fees (0.01%, 0.05%, 0.3%, 1%)
+        uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
+
+        // Get the pool given each fee. If it exists, query the current liquidity of the pool to check
+        // which pool has the highest liquidity and hence which pool will most likely offer the best amountOut.
+        // In reality this doesn't always result in the highest amountOut, but it will at least filter out dead
+        // pools and saves us from having to use the UnsiwapV3 Quoter, which is gas inefficient should not be used on-chain:
+        // https://docs.uniswap.org/contracts/v3/reference/periphery/lens/QuoterV2
+        for (uint256 i = 0; i < fees.length; ) {
+            // Get the pool given `fee`
+            address pool = uniswapFactory.getPool(tokenIn, tokenOut, fees[i]);
+
+            // Check if pool exists
+            if (pool != address(0)) {
+                // Get the liquidity for this pool
+                uint256 liquidity = IUniswapV3Pool(pool).liquidity();
+
+                // If amountOut is higher than the last maxAmount then cache the pool fee and maxamount
+                if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
+            }
+
+            unchecked {
+                i++;
+            }
+        }
+    }
+
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
           6. NON-CONSTANT FUNCTIONS
         ═══════════════════════════════════════════════════════════════════════════════════════════════════════  */
@@ -322,20 +375,6 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
-     *  @notice Function to ensure that the repaid amount doesn't exceed the currently owed amount
-     *  @param borrowable The address of the Cygnus borrowable contract
-     *  @param amountMax The amount being repaid
-     *  @param borrower The address of the borrower whose debt is being repaid
-     */
-    function _maxRepayAmount(address borrowable, uint256 amountMax, address borrower) internal view returns (uint256 amount) {
-        // Get latest borrow balance of borrower
-        (, uint256 borrowedAmount) = ICygnusBorrow(borrowable).getBorrowBalance(borrower);
-
-        // Avoid repaying more than borrowedAmount
-        amount = amountMax < borrowedAmount ? amountMax : borrowedAmount;
-    }
-
-    /**
      *  @notice Sends USDC back to the borrowable and calls `borrow` with no borrow amount, repaying the loan
      *          and sending any leftover USDC back to the borrower
      *  @param borrowable Address of the Cygnus borrow contract
@@ -371,42 +410,16 @@ abstract contract CygnusAltairX is ICygnusAltairX {
     }
 
     /**
-     *  @notice Calculates the pool with the best fee to swap `tokenIn` to `tokenOut` given `amountIn`
-     *  @param tokenIn The address of the token we are swapping
-     *  @param tokenOut The address of the token we are receiving
+     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
+     *  @param dexAggregator The id of the dex aggregator to use
+     *  @return Whether or not the dex aggregator is a legacy aggregator
      */
-    function _optimalPoolFee(address tokenIn, address tokenOut) internal view returns (uint24 poolFee) {
-        /// Get the uniswapv3 factory on this chain
-        IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
-
-        // Start at 0
-        uint256 maxLiquidity = 0;
-
-        // Possible fees (0.01%, 0.05%, 0.3%, 1%)
-        uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
-
-        // Get the pool given each fee. If it exists, query the current liquidity of the pool to check
-        // which pool has the highest liquidity and hence which pool will most likely offer the best amountOut.
-        // In reality this doesn't always result in the highest amountOut, but it will at least filter out dead
-        // pools and saves us from having to use the UnsiwapV3 Quoter, which is gas inefficient should not be used on-chain:
-        // https://docs.uniswap.org/contracts/v3/reference/periphery/lens/QuoterV2
-        for (uint256 i = 0; i < fees.length; ) {
-            // Get the pool given `fee`
-            address pool = uniswapFactory.getPool(tokenIn, tokenOut, fees[i]);
-
-            // Check if pool exists
-            if (pool != address(0)) {
-                // Get the liquidity for this pool
-                uint256 liquidity = IUniswapV3Pool(pool).liquidity();
-
-                // If amountOut is higher than the last maxAmount then cache the pool fee and maxamount
-                if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
-            }
-
-            unchecked {
-                i++;
-            }
-        }
+    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) internal pure returns (bool) {
+        // Only legacy aggregators are open ocean v1 and one inch v1
+        return
+            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
+            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
     }
 
     // Swap tokens via Paraswap
@@ -606,14 +619,23 @@ abstract contract CygnusAltairX is ICygnusAltairX {
      *  @return amountOut The amount of `tokenOut` we receive
      */
     function _swapTokensUniswapV3(address tokenIn, address tokenOut, uint256 amountIn) internal returns (uint256 amountOut) {
-        /// Check allowance and approve UniswapV3 Router in token in if necessary
-        _approveToken(tokenIn, UNISWAP_V3_ROUTER, amountIn);
+        // Always bridge through native token (ie. WETH, WMATIC, etc.)
+        if (tokenIn != address(nativeToken) && tokenOut != address(nativeToken)) {
+            // Recursively swap tokenIn to nativeToken. Assign the amount received of native as the amountIn for the next swap
+            amountIn = _swapTokensUniswapV3(tokenIn, address(nativeToken), amountIn);
 
-        /// Get the optimal pool to trade `tokenIn` to `tokenOut`
+            // We perform the second swap of nativeToken to tokenOut
+            tokenIn = address(nativeToken);
+        }
+
+        // Get the optimal pool to trade `tokenIn` to `tokenOut`
         uint24 optimalPoolFee = _optimalPoolFee(tokenIn, tokenOut);
 
         /// @custom:error InvalidPoolFee
         if (optimalPoolFee == 0) revert CygnusAltair__InvalidPool();
+
+        // Check allowance and approve UniswapV3 Router in token in if necessary
+        _approveToken(tokenIn, UNISWAP_V3_ROUTER, amountIn);
 
         // Fee possibilities: 500, 3000, 10000
         amountOut = IUniswapV3Router(UNISWAP_V3_ROUTER).exactInputSingle(
@@ -681,19 +703,6 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         }
         /// @custom:error InvalidAggregator
         else revert CygnusAltair__InvalidAggregator();
-    }
-
-    /**
-     *  @notice Returns whether or not the dex aggregator will use the legacy `swap` function
-     *  @param dexAggregator The id of the dex aggregator to use
-     *  @return Whether or not the dex aggregator is a legacy aggregator
-     */
-    function _isLegacy(ICygnusAltair.DexAggregator dexAggregator) internal pure returns (bool) {
-        // Only legacy aggregators are open ocean v1 and one inch v1
-        return
-            dexAggregator == ICygnusAltair.DexAggregator.OPEN_OCEAN_LEGACY ||
-            dexAggregator == ICygnusAltair.DexAggregator.ONE_INCH_LEGACY ||
-            dexAggregator == ICygnusAltair.DexAggregator.UNISWAP_V3_EMERGENCY;
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
