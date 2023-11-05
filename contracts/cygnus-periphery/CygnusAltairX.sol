@@ -285,11 +285,11 @@ abstract contract CygnusAltairX is ICygnusAltairX {
         /// Get the uniswapv3 factory on this chain
         IUniswapV3Factory uniswapFactory = IUniswapV3Factory(UNISWAP_V3_FACTORY);
 
-        // Start at 0
-        uint256 maxLiquidity = 0;
-
         // Possible fees (0.01%, 0.05%, 0.3%, 1%)
         uint24[4] memory fees = [uint24(100), 500, 3000, 10000];
+
+        // Start at 0
+        uint256 maxLiquidity = 0;
 
         // Get the pool given each fee. If it exists, query the current liquidity of the pool to check
         // which pool has the highest liquidity and hence which pool will most likely offer the best amountOut.
@@ -305,7 +305,7 @@ abstract contract CygnusAltairX is ICygnusAltairX {
                 // Get the liquidity for this pool
                 uint256 liquidity = IUniswapV3Pool(pool).liquidity();
 
-                // If amountOut is higher than the last maxAmount then cache the pool fee and maxamount
+                // If liquidity is higher than maxLiquidity then cache the pool fee and liquidity
                 if (liquidity > maxLiquidity) (poolFee, maxLiquidity) = (fees[i], liquidity);
             }
 
