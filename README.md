@@ -1,4 +1,4 @@
-# **Cygnus Periphery Contract**
+# **Cygnus Periphery Contracts**
 
 | Update                                                         | Date         |
 | -------------------------------------------------------------- | ------------ |
