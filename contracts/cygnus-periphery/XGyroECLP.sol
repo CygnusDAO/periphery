@@ -52,12 +52,14 @@ import {ICygnusAltair} from "./interfaces/ICygnusAltair.sol";
 import {ICygnusBorrow} from "./interfaces/core/ICygnusBorrow.sol";
 import {ICygnusCollateral} from "./interfaces/core/ICygnusCollateral.sol";
 
+// Extension
 import {IGyroECLPPool} from "./interfaces-extension/IGyroECLPPool.sol";
 import {IVault} from "./interfaces-extension/IVault.sol";
 
 /**
  *  @title  XGyroECLP Extension for Balancer Gyro ECLP Pools (2 tokens)
  *  @author CygnusDAO
+ *  @notice Periphery router used to interact with Cygnus core pools using Balancer Gyro ECLP pools as collateral.
  */
 contract XGyroECLP is CygnusAltairX, ICygnusAltairCall {
     /*  ═══════════════════════════════════════════════════════════════════════════════════════════════════════ 
