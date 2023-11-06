@@ -12,6 +12,7 @@
 | Integrated OKX Dex Aggregator                                  | (20/10/2023) |
 | Periphery contracts and Hypervisor extension was audited (**)  | (04/11/2023) |
 | UniswapV3 Swaps will always bridge through native tokens first | (05/11/2023) |
+| Added Balancer Composable Stable pool extension                | (06/11/2023) |
 
 This is the main periphery contract to interact with the Cygnus Core contracts.
 
