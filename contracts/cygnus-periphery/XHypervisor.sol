@@ -319,10 +319,10 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         if (token0 == usd || token1 == usd) {
             // Convert the other token to USD and return
             token0 == usd
-                ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB))
-                : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA), amountTokenB);
+                ? _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB)
+                : _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
         }
-        // ─────────────────── 2. Not USD, swap both to USD
+        // ─────────────────────── 2. Not USD, swap both to USD
         else {
             // Swap token0 to USD with received amount of token0 from the LP burn
             _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
