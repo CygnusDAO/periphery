@@ -297,7 +297,8 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
 
     /**
      *  @notice Converts an amount of LP Token to USD. It is called after calling `burn` on a uniswapV2 pair, which
-     *          receives amountTokenA of token0 and amountTokenB of token1.
+     *          receives amountTokenA of token0 and amountTokenB of token1. We don't return the amount of the token
+     *          out swapped since aggregators don't always return the proper amounOut (ie. paraswap...)
      *  @notice Maximum 2 swaps
      *  @param amountTokenA The amount of token A to convert to USD
      *  @param amountTokenB The amount of token B to convert to USD
@@ -321,13 +322,14 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
                 ? (amountTokenA, _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB))
                 : (_swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA), amountTokenB);
         }
-
         // ─────────────────── 2. Not USD, swap both to USD
-        // Swap token0 to USD with received amount of token0 from the LP burn
-        _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
+        else {
+            // Swap token0 to USD with received amount of token0 from the LP burn
+            _swapTokensAggregator(dexAggregator, swapdata[0], token0, usd, amountTokenA);
 
-        // Swap token1 to USD with received amount of token1 from the LP burn
-        _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
+            // Swap token1 to USD with received amount of token1 from the LP burn
+            _swapTokensAggregator(dexAggregator, swapdata[1], token1, usd, amountTokenB);
+        }
     }
 
     /*  ────────────────────────────────────────────── External ───────────────────────────────────────────────  */
