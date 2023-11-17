@@ -112,7 +112,7 @@ contract XHypervisor is CygnusAltairX, ICygnusAltairCall {
         uint256 scalarDifference = scalar0.divWad(scalar1);
 
         // Adjust for token decimals
-        uint256 decimalsDenominator = scalarDifference > 1e12 ? 1e6 : 1;
+        uint256 decimalsDenominator = scalarDifference > 1e12 ? 1e6 : scalarDifference.divWad(1e18);
 
         // Get sqrt price from Algebra pool
         (uint256 sqrtPriceX96, , , , , , ) = IAlgebraPool(IHypervisor(lpTokenPair).pool()).globalState();
