@@ -302,6 +302,20 @@ function deleverage(
 
 The `deleverage` function will call the `CygnusCollateral` contract and this will flash redeem liquidity tokens to the router. The router then burns the liquidity token (or the DEX' function to redeem the liquidity token for the assets), and receives the assets (for example amountA of token0, amountB of token1). It then converts all of amountA and amountB this contract has to USDC, repaying by sending it back to the borrowable contract and sending left over balance to the borrower.
 
+** Emergency Deleverage/Liquidation Only **
+
+In the unlikely case where all DEX Aggregators go down and are not available, users can always perform an emergency deleverage using UniswapV3 from our frontend or from the block exporer directly. UniswapV3's ID is **7**.
+
+We optimized it to make it as efficient as possible by swapping through pools with the highest liquidity, but using DEX aggregators is always favourable. To perform an emergency deleverage with UniswapV3:
+
+```javascript
+function deleverage(
+    ...
+    7,
+    ['0x']
+)
+```
+
 <hr />
 
 **Liquidate**
